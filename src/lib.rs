@@ -1,52 +1,49 @@
-// use std::ffi::CString;
-
-// #[no_mangle]
-// pub extern "stdcall" fn get_data() -> *const i8 {
-//     let response_text = executeSqlQuery();
-//     let data = CString::new(response_text).unwrap();
-//     data.into_raw()
-// }
-
-// #[no_mangle]
-// pub extern "stdcall" fn free_data(ptr: *mut i8) {
-//     unsafe {
-//         if ptr.is_null() {
-//             return;
-//         }
-//         CString::from_raw(ptr)
-//     };
-// }
-
-// fn executeSqlQuery() -> String {
-//     let database_response = "SELECT * FROM ref_currency_type;".to_string();
-//     database_response
-// }
-
-
-
-
-
-
-
-
-
-
-use std::os::raw::c_void;
-use std::ffi::CString;
-use std::os::windows::ffi::OsStringExt;
-use std::ptr;
 use std::collections::VecDeque;
+use std::os::raw::c_void;
+
+struct DbResponse {
+    ptr: *mut c_void,
+    length: usize,
+}
+
+static mut POSTGRES_RESPONSE: DbResponse = DbResponse {
+    ptr: std::ptr::null_mut(),
+    length: 0,
+};
 
 static mut STRINGS: VecDeque<Vec<u16>> = VecDeque::new();
 
 #[no_mangle]
-pub extern "stdcall" fn get_data() -> *mut c_void {
-    let response_text = executeSqlQuery();
+pub extern "stdcall" fn send_request() {
+    let response_text = getDatabaseResponse();
     let mut data: Vec<u16> = response_text.encode_utf16().collect();
     data.push(0); // null terminate
-    let ptr = data.as_mut_ptr() as *mut c_void;
-    unsafe { STRINGS.push_back(data) };
-    ptr
+
+    unsafe {
+        POSTGRES_RESPONSE.ptr = data.as_mut_ptr() as *mut c_void;
+        POSTGRES_RESPONSE.length = data.len() * std::mem::size_of::<u16>();
+        STRINGS.push_back(data);
+    };
+}
+
+#[no_mangle]
+pub extern "stdcall" fn get_data_len() -> i32 {
+    unsafe { POSTGRES_RESPONSE.length.try_into().unwrap() }
+
+    //     if let Some(data) = STRINGS.front_mut() {
+    //         data.len().try_into().unwrap()
+    //     } else {
+}
+
+#[no_mangle]
+pub extern "stdcall" fn get_data() -> *mut c_void {
+    unsafe {
+        if let Some(data) = STRINGS.front_mut() {
+            data.as_mut_ptr() as *mut c_void
+        } else {
+            std::ptr::null_mut()
+        }
+    }
 }
 
 #[no_mangle]
@@ -59,7 +56,13 @@ pub extern "stdcall" fn free_data(ptr: *mut c_void) {
     }
 }
 
-fn executeSqlQuery() -> String {
-    let database_response = "SELECT * FROM ref_currency_type;".to_string();
+fn getDatabaseResponse() -> String {
+    let database_response = "ответ𐐷".to_string();
     database_response
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {}
 }
