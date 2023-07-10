@@ -6,10 +6,7 @@ struct DbResponse {
     length: usize,
 }
 
-static mut POSTGRES_RESPONSE: DbResponse = DbResponse {
-    ptr: std::ptr::null_mut(),
-    length: 0,
-};
+static mut POSTGRES_RESPONSE: Option<DbResponse> = None;
 
 static mut STRINGS: VecDeque<Vec<u16>> = VecDeque::new();
 
@@ -20,22 +17,31 @@ pub extern "stdcall" fn send_request() {
     data.push(0); // null terminate
 
     unsafe {
-        POSTGRES_RESPONSE.ptr = data.as_mut_ptr() as *mut c_void;
-        POSTGRES_RESPONSE.length = data.len() * std::mem::size_of::<u16>();
+        POSTGRES_RESPONSE = Some(DbResponse {
+            ptr: data.as_mut_ptr() as *mut c_void,
+            length: data.len() * std::mem::size_of::<u16>(),
+        });
+
         STRINGS.push_back(data);
     };
 }
 
 #[no_mangle]
 pub extern "stdcall" fn get_data_len() -> i32 {
-    unsafe { POSTGRES_RESPONSE.length.try_into().unwrap() }
+    unsafe {
+        if let Some(data) = &POSTGRES_RESPONSE {
+            data.length.try_into().expect("превышено максимальное значение i32 при конвертации беззнакового типа")
+        } else {
+            0
+        }
+    }
 }
 
 #[no_mangle]
-pub extern "stdcall" fn get_data() -> *mut c_void {
+pub extern "stdcall" fn get_data_ptr() -> *mut c_void {
     unsafe {
-        if let Some(data) = STRINGS.front_mut() {
-            data.as_mut_ptr() as *mut c_void
+        if let Some(data) = &POSTGRES_RESPONSE {
+            data.ptr
         } else {
             std::ptr::null_mut()
         }
