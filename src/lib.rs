@@ -1,22 +1,20 @@
-// структура с данными по которым vba считает строку из памяти, #[repr(C)] зафиксирует поля в порядке как задал программист
-//Если есть только Box<Vec<u16>> без Option, не сможете использовать std::mem::forget, поскольку Box<Vec<u16>> всегда должен иметь действительное значение. Option<Box<Vec<u16>>> позволяет использовать None для обозначения отсутствия значения, что позволяет безопасно использовать std::mem::forget.
+// структура с данными по которым vba получит строку из памяти, #[repr(C)] зафиксирует поля в порядке как задал программист
 #[repr(C)]
-pub struct SendingStringForVBA {
+pub struct StringWrapsForVBA {
     ptr: *mut u16,
     length_in_bytes: i32,
-    _data: Option<Box<Vec<u16>>>, // это поле будет читаться VBA
+    _data: Box<Vec<u16>>, // это поле будет читаться VBA
 }
 
 #[no_mangle]
-pub extern "stdcall" fn send_request() -> *mut SendingStringForVBA {
+pub extern "stdcall" fn send_request() -> *mut StringWrapsForVBA {
     let text = getDatabaseResponse();
-    let sending_data = get_string(text);
+    let sending_data = get_string_wrap(text);
 
     Box::into_raw(Box::new(sending_data))
 }
 
-// Преобразует String в SendingStringForVBA
-fn get_string(text: String) -> SendingStringForVBA {
+fn get_string_wrap(text: String) -> StringWrapsForVBA {
     //.encode_utf16() правильно обрабатывает суррогатные пары Unicode (возвращает итератор, который выдает 16-битные юниты кодировки UTF-16).
     //тогда как chars().count() возвращает количество Unicode скаляров в строке, не все из которых будут соответствовать одному символу в строке
     let data: Vec<u16> = text.encode_utf16().collect();
@@ -25,15 +23,15 @@ fn get_string(text: String) -> SendingStringForVBA {
     let boxed_data = Box::new(data);
     let ptr = boxed_data.as_ptr() as *mut u16;
 
-    SendingStringForVBA {
+    StringWrapsForVBA {
         ptr,
         length_in_bytes,
-        _data: Some(boxed_data),
+        _data: boxed_data,
     }
 }
 
 #[no_mangle]
-pub extern "stdcall" fn free_data(ptr: *mut SendingStringForVBA) {
+pub extern "stdcall" fn free_data(ptr: *mut StringWrapsForVBA) {
     unsafe {
         // освобождаем память под структурой
         drop(Box::from_raw(ptr));
