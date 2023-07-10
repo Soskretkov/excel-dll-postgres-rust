@@ -29,10 +29,6 @@ pub extern "stdcall" fn send_request() {
 #[no_mangle]
 pub extern "stdcall" fn get_data_len() -> i32 {
     unsafe { POSTGRES_RESPONSE.length.try_into().unwrap() }
-
-    //     if let Some(data) = STRINGS.front_mut() {
-    //         data.len().try_into().unwrap()
-    //     } else {
 }
 
 #[no_mangle]
