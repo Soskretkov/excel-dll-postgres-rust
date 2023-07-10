@@ -1,60 +1,41 @@
-use std::collections::VecDeque;
 use std::os::raw::c_void;
 
-struct DbResponse {
+// структура с данными по которым vba считает строку из памяти, #[repr(C)] зафиксирует поля в порядке как задал программист
+#[repr(C)]
+pub struct SendingStringForVBA {
     ptr: *mut c_void,
-    length: usize,
+    length: i32,
 }
 
-static mut POSTGRES_RESPONSE: Option<DbResponse> = None;
+#[no_mangle]
+pub extern "stdcall" fn send_request() -> *mut String {
+    let text = getDatabaseResponse();
+    let text_ptr = Box::new(text);
 
-static mut STRINGS: VecDeque<Vec<u16>> = VecDeque::new();
+    Box::into_raw(text_ptr)
+}
 
 #[no_mangle]
-pub extern "stdcall" fn send_request() {
-    let response_text = getDatabaseResponse();
-    let mut data: Vec<u16> = response_text.encode_utf16().collect();
+pub extern "stdcall" fn get_string(ptr: *mut String) -> Box<SendingStringForVBA> {
+    let mut data: Vec<u16> = unsafe { (*ptr).encode_utf16().collect() };
+    free_data(ptr);
     data.push(0); // null terminate
 
-    unsafe {
-        POSTGRES_RESPONSE = Some(DbResponse {
-            ptr: data.as_mut_ptr() as *mut c_void,
-            length: data.len() * std::mem::size_of::<u16>(),
-        });
+    let sending_data = Box::new(SendingStringForVBA {
+        ptr: data.as_mut_ptr() as *mut c_void,
+        length: (data.len() * std::mem::size_of::<u16>())
+            .try_into()
+            .unwrap(),
+    });
 
-        STRINGS.push_back(data);
-    };
+    sending_data
 }
 
 #[no_mangle]
-pub extern "stdcall" fn get_data_len() -> i32 {
+pub extern "stdcall" fn free_data(ptr: *mut String) {
     unsafe {
-        if let Some(data) = &POSTGRES_RESPONSE {
-            data.length.try_into().expect("превышено максимальное значение i32 при конвертации беззнакового типа")
-        } else {
-            0
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "stdcall" fn get_data_ptr() -> *mut c_void {
-    unsafe {
-        if let Some(data) = &POSTGRES_RESPONSE {
-            data.ptr
-        } else {
-            std::ptr::null_mut()
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "stdcall" fn free_data(ptr: *mut c_void) {
-    unsafe {
-        if ptr.is_null() {
-            return;
-        }
-        STRINGS.pop_front(); // assumes strings are freed in order they were got
+        // Освобождение памяти, на которую указывает ptr
+        drop(Box::from_raw(ptr));
     }
 }
 
