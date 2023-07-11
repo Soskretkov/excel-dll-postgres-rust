@@ -8,43 +8,19 @@ pub struct StringWrapForVBA {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn send_request(bstr_sql_code_ptr: *const u16) -> *mut StringWrapForVBA {
+pub extern "stdcall" fn send_request(bstr_ptr: *const u16) -> *mut StringWrapForVBA {
     // вычисление длины строки
+    let bstr_len_ptr = unsafe { bstr_ptr.offset(-2) as *const u32 };
 
-    // let len_bstr_ptr = unsafe { bstr_sql_code.offset(-4) as *const u32 };
+    let bstr_len_in_bytes: u32 = unsafe { std::ptr::read_unaligned(bstr_len_ptr) };
 
-    // let len_bstr: u32 = unsafe {
-    //     *len_bstr_ptr
-    //     //std::ptr::read_unaligned(len_ptr) as usize
-    // };
+    // создание среза второй параметр это число итераций, длина отдельного элемента определяется по типу указателя (2 байта у нас)
+    let slice = unsafe { slice::from_raw_parts(bstr_ptr, (bstr_len_in_bytes / 2) as usize) }; // создание среза
+    let sql_query = String::from_utf16(slice).unwrap();
 
+    let text = format!("запрос: {}\n\nбайты: {}", sql_query, getBytes(&sql_query));
 
-
-
-
-
-    // конвертация из *const u16 в String
-    // let sql_code = unsafe {
-    //     let slice = slice::from_raw_parts(bstr_sql_code, 2); // создание среза
-    //     String::from_utf16(slice).unwrap() // конвертация в String
-    // };
-
-    // let text = getDatabaseResponse(sql_code);
-    // let text = len_bstr.to_string();
-
-
-
-
-    // let text = format!("{:p}", bstr_sql_code_ptr);
-    let text = format!("rust-адрес: {}", bstr_sql_code_ptr as usize);
-
-
-
-
-
-    // let text = sql_code;
     let sending_data = get_string_wrap_for_vba(text);
-
     Box::into_raw(Box::new(sending_data))
 }
 
@@ -76,6 +52,16 @@ pub extern "stdcall" fn free_data(ptr: *mut StringWrapForVBA) {
 fn getDatabaseResponse(query: String) -> String {
     let database_response = "ответ𐐷".to_string();
     database_response
+}
+
+fn getBytes(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let hex_string = bytes
+        .iter()
+        .map(|&byte| format!("{:02X}", byte))
+        .collect::<Vec<String>>()
+        .join("");
+    hex_string
 }
 
 #[cfg(test)]
