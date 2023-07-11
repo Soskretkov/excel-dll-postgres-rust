@@ -8,38 +8,13 @@ pub struct StringWrapForVBA {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn send_request(bstr_ptr: *const u16) -> *mut StringWrapForVBA {
-    // вычисление длины строки
-    let bstr_len_ptr = unsafe { bstr_ptr.offset(-2) as *const u32 };
-
-    let bstr_len_in_bytes: u32 = unsafe { std::ptr::read_unaligned(bstr_len_ptr) };
-
-    // создание среза второй параметр это число итераций, длина отдельного элемента определяется по типу указателя (2 байта у нас)
-    let slice = unsafe { slice::from_raw_parts(bstr_ptr, (bstr_len_in_bytes / 2) as usize) }; // создание среза
-    let sql_query = String::from_utf16(slice).unwrap();
+pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringWrapForVBA {
+    let sql_query = get_string_from_vba(ptr);
 
     let text = format!("запрос: {}\n\nбайты: {}", sql_query, getBytes(&sql_query));
-
-    let sending_data = get_string_wrap_for_vba(text);
-    Box::into_raw(Box::new(sending_data))
+    get_string_ptr_for_vba(text)
 }
 
-fn get_string_wrap_for_vba(text: String) -> StringWrapForVBA {
-    //.encode_utf16() правильно обрабатывает суррогатные пары Unicode (возвращает итератор 16-битных юнитов кодировки UTF-16).
-    let data: Vec<u16> = text.encode_utf16().collect();
-    let length_in_bytes: i32 = (text.encode_utf16().count() * std::mem::size_of::<u16>())
-        .try_into()
-        .unwrap();
-
-    let boxed_data = Box::new(data);
-    let ptr = boxed_data.as_ptr() as *mut u16;
-
-    StringWrapForVBA {
-        ptr,
-        length_in_bytes,
-        _data: boxed_data,
-    }
-}
 
 #[no_mangle]
 pub extern "stdcall" fn free_data(ptr: *mut StringWrapForVBA) {
@@ -49,10 +24,43 @@ pub extern "stdcall" fn free_data(ptr: *mut StringWrapForVBA) {
     }
 }
 
+
+fn get_string_from_vba(bstr_ptr: *const u16) -> String{
+    // вычисление длины строки
+    let bstr_len_ptr = unsafe {bstr_ptr.offset(-2) as *const u32 };
+
+    let bstr_len_in_bytes: u32 = unsafe { std::ptr::read_unaligned(bstr_len_ptr) };
+
+    // создание среза: второй параметр это число итераций, длина итерантов определяется по типу указателя (2 байта у нас)
+    let slice = unsafe { slice::from_raw_parts(bstr_ptr, (bstr_len_in_bytes / 2) as usize) }; // создание среза
+    String::from_utf16(slice).unwrap()
+}
+
+
+fn get_string_ptr_for_vba(text: String) -> *mut StringWrapForVBA {
+    //.encode_utf16() правильно обрабатывает суррогатные пары Unicode (возвращает итератор 16-битных юнитов кодировки UTF-16).
+    let data: Vec<u16> = text.encode_utf16().collect();
+    let length_in_bytes: i32 = (text.encode_utf16().count() * std::mem::size_of::<u16>())
+        .try_into()
+        .unwrap();
+
+    let boxed_data = Box::new(data);
+    let ptr = boxed_data.as_ptr() as *mut u16;
+
+    let sending_data = StringWrapForVBA {
+        ptr,
+        length_in_bytes,
+        _data: boxed_data,
+    };
+    Box::into_raw(Box::new(sending_data))
+}
+
+
 fn getDatabaseResponse(query: String) -> String {
     let database_response = "ответ𐐷".to_string();
     database_response
 }
+
 
 fn getBytes(text: &str) -> String {
     let bytes = text.as_bytes();
@@ -63,6 +71,7 @@ fn getBytes(text: &str) -> String {
         .join("");
     hex_string
 }
+
 
 #[cfg(test)]
 mod tests {
