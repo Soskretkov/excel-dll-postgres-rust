@@ -1,12 +1,13 @@
 mod vba_str_io;
 use vba_str_io::StringForVBA;
 
+use postgres::{Client, Error, NoTls, Row};
+
 #[no_mangle]
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
-    // let sql_query = vba_str_io::get_string_from_vba(ptr);
     let sql_query = String::from("select * from ref_currency_type;");
 
-    let response = getDatabaseResponse(sql_query);
+    let response = getDatabaseResponse(&sql_query).unwrap();
     let response_for_vba = StringForVBA::from_string(response);
     response_for_vba.into_raw()
 }
@@ -19,10 +20,33 @@ pub extern "stdcall" fn free_data(ptr: *mut StringForVBA) {
     }
 }
 
-fn getDatabaseResponse(query: String) -> String {
-    let database_response = format!("запрос: {}\n\nбайты: {}", query, getBytes(&query));
-    database_response
+fn getDatabaseResponse(query: &str) -> Result<String, Error> {
+
+    // Создаем клиент и подключаемся к базе данных
+    let mut client = Client::connect("host=localhost user=postgres dbname=el_dabaa", NoTls)?;
+
+    // Выполняем запрос
+    let rows: Vec<Row> = client.query(query, &[])?;
+    let response: String = rows[0].get("id");
+
+    // Преобразуем результаты запроса в JSON
+    // let json = convert_to_json(rows);
+
+    // Ok(value)
+    Ok(response)
 }
+
+fn convert_to_json() {}
+
+
+
+
+
+
+
+
+
+
 
 fn getBytes(text: &str) -> String {
     let bytes = text.as_bytes();
