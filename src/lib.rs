@@ -1,9 +1,9 @@
-mod vba_string_utils;
-use vba_string_utils::StringForVBA;
+mod vba_str_io;
+use vba_str_io::StringForVBA;
 
 #[no_mangle]
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
-    // let sql_query = vba_string_utils::get_string_from_vba(ptr);
+    // let sql_query = vba_str_io::get_string_from_vba(ptr);
     let sql_query = String::from("select * from ref_currency_type;");
 
     let response = getDatabaseResponse(sql_query);
