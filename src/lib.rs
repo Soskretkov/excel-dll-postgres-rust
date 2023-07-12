@@ -11,6 +11,8 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
 
     let response = getDatabaseResponse(&sql_query);
     let response_for_vba = StringForVBA::from_string(response);
+    // let response_for_vba = StringForVBA::from_string("a".to_string());
+
     response_for_vba.into_raw()
 }
 

@@ -4,6 +4,7 @@ use std::slice;
 #[repr(C)]
 pub struct StringForVBA {
     ptr: *mut u16,
+    is_valid: bool,
     length_in_bytes: i32,
     _data: Box<Vec<u16>>, // это поле не будет читаться VBA и оно тут для выравнивания времени жизни с полем "ptr" для того чтобы vba читал действительный "ptr"
 }
@@ -19,12 +20,16 @@ impl StringForVBA {
         let boxed_data = Box::new(data);
         let ptr = boxed_data.as_ptr() as *mut u16;
 
-        let sending_data = StringForVBA {
+        StringForVBA {
             ptr,
+            is_valid: true,
             length_in_bytes,
             _data: boxed_data,
-        };
-        sending_data
+        }   
+    }
+
+    pub fn validity_update(&mut self, is_valid: bool) {
+        self.is_valid = is_valid;
     }
 
     pub fn into_raw(self) -> *mut StringForVBA {
