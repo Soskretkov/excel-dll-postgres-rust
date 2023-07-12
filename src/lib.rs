@@ -68,7 +68,11 @@ fn getDatabaseResponse(query: &str) -> String {
                         hmap.insert(k, serde_json::json!(v));
                     }
                     _ => {
-                        let v: String = row.get(k.as_str());
+                        let value: Result<String, _> = row.try_get(k.as_str());
+                        let v = match value {
+                            Ok(v) => v,
+                            Err(_) => "".to_string(),
+                        };
                         hmap.insert(k, serde_json::json!(v));
                     }
                 }
