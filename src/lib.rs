@@ -35,6 +35,7 @@ fn get_database_response(query: &str) -> String {
 }
 
 fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
+    use chrono::NaiveDate;
     use indexmap::IndexMap; //чтобы сохранить порядок столбцов
     use serde::ser::{SerializeMap, Serializer};
     use serde::Serialize;
@@ -99,8 +100,26 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
                         hmap.insert(k, serde_json::json!(v));
                     }
                     &Type::DATE => {
-                        //     let v: i32 = row.get(k.as_str());
-                        //     hmap.insert(k, serde_json::json!(v));
+                        // let v: Option<NaiveDate> = row.get(k.as_str());
+                        // if let Some(v) = v {
+                        //     hmap.insert(k, serde_json::json!(v.to_string()));
+                        // } else {
+                        //     hmap.insert(k, serde_json::json!(null));
+                        // }
+                        let v: Option<NaiveDate> = row.get(k.as_str());
+                        let base_date = NaiveDate::from_ymd_opt(1899, 12, 30);
+                        if let Some(base_date) = base_date {
+                            if let Some(v) = v {
+                                let duration = v.signed_duration_since(base_date);
+                                hmap.insert(k, serde_json::json!(duration.num_days()));
+                            } else {
+                                // Handle null value:
+                                hmap.insert(k, serde_json::json!(null));
+                            }
+                        } else {
+                            // Handle error:
+                            println!("Invalid base date");
+                        }
                     }
                     _ => {
                         let value: Result<String, _> = row.try_get(k.as_str());
