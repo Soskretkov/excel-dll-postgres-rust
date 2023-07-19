@@ -1,3 +1,7 @@
 /target
 Cargo.lock
- ~$test.xlsm
+~$test.xlsm
+/excel_dll_postgres_rust/Cargo.lock
+/crypt/Cargo.lock
+/crypt/encrypted.txt
+/crypt/encryption_key.txt

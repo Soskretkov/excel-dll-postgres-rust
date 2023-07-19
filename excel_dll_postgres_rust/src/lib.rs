@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 mod vba_str_io;
-mod crypt;
 use postgres::{types::Type, Client, NoTls, Row};
 use vba_str_io::StringForVBA;
 
