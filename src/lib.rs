@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 mod vba_str_io;
+mod crypt;
 use postgres::{types::Type, Client, NoTls, Row};
 use vba_str_io::StringForVBA;
 
@@ -6,7 +8,13 @@ use vba_str_io::StringForVBA;
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
     let sql_query = vba_str_io::get_string_from_vba(ptr);
 
-    let response = get_database_response(&sql_query);
+    // параметры для подключения к БД
+    let my_db_parameters = get_db_params();
+
+    // ответ от БД
+    let response = get_database_response(&sql_query, my_db_parameters);
+
+    // конвертация в формат, ожидаемый на стороне vba
     let response_for_vba = StringForVBA::from_string(response);
 
     response_for_vba.into_raw()
@@ -20,10 +28,19 @@ pub extern "stdcall" fn free_data(ptr: *mut StringForVBA) {
     }
 }
 
-fn get_database_response(query: &str) -> String {
-    // cоздаем клиент и подключаемся к базе данных
-    let mut client =
-        Client::connect("host=localhost user=postgres dbname=el_dabaa", NoTls).unwrap();
+fn get_database_response(query: &str, db_access_parameters: HashMap<String, String>) -> String {
+    // строка параметров для соединения с БД
+    let parameter_string = format!(
+        "host={} dbname={} user={} password={}",
+        db_access_parameters.get("host").unwrap(),
+        db_access_parameters.get("dbname").unwrap(),
+        db_access_parameters.get("user").unwrap(),
+        db_access_parameters.get("password").unwrap()
+    );
+
+    // cоздаем клиент и подключаемся к БД
+    let mut client = Client::connect(&parameter_string, NoTls).unwrap();
+    // Client::connect("host=snuffleupagus.db.elephantsql.com user=meoqjyty password=kiBoRlI607cq8wV5s9-Muc9qf0_o0jIC dbname=meoqjyty", NoTls).unwrap();
 
     // выполняем запрос
     let rows: Vec<Row> = client.query(query, &[]).unwrap();
@@ -32,6 +49,16 @@ fn get_database_response(query: &str) -> String {
     let json = rows_type_into_obj_in_arr_json(rows);
 
     json
+}
+
+fn get_db_params() -> HashMap<String, String> {
+    // это только для теста, не храните реальные данные в dll!
+    let mut db_parameters = HashMap::<String, String>::new();
+    db_parameters.insert(String::from("host"), String::from("localhost"));
+    db_parameters.insert(String::from("dbname"), String::from("el_dabaa"));
+    db_parameters.insert(String::from("user"), String::from("postgres"));
+    db_parameters.insert(String::from("password"), String::from("password"));
+    db_parameters
 }
 
 fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
@@ -100,12 +127,6 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
                         hmap.insert(k, serde_json::json!(v));
                     }
                     &Type::DATE => {
-                        // let v: Option<NaiveDate> = row.get(k.as_str());
-                        // if let Some(v) = v {
-                        //     hmap.insert(k, serde_json::json!(v.to_string()));
-                        // } else {
-                        //     hmap.insert(k, serde_json::json!(null));
-                        // }
                         let v: Option<NaiveDate> = row.get(k.as_str());
                         let base_date = NaiveDate::from_ymd_opt(1899, 12, 30);
                         if let Some(base_date) = base_date {
