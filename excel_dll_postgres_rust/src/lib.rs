@@ -15,7 +15,6 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
 
     // конвертация в формат, ожидаемый на стороне vba
     let response_for_vba = StringForVBA::from_string(response);
-
     response_for_vba.into_raw()
 }
 
@@ -46,18 +45,8 @@ fn get_database_response(query: &str, db_access_parameters: HashMap<String, Stri
 
     // результаты запроса в String c json-контентом
     let json = rows_type_into_obj_in_arr_json(rows);
-
+  
     json
-}
-
-fn get_db_params() -> HashMap<String, String> {
-    // это только для теста, не храните реальные данные в dll!
-    let mut db_parameters = HashMap::<String, String>::new();
-    db_parameters.insert(String::from("host"), String::from("localhost"));
-    db_parameters.insert(String::from("dbname"), String::from("el_dabaa"));
-    db_parameters.insert(String::from("user"), String::from("postgres"));
-    db_parameters.insert(String::from("password"), String::from("password"));
-    db_parameters
 }
 
 fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
@@ -141,6 +130,8 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
                             println!("Invalid base date");
                         }
                     }
+                    &Type::JSONB => {
+                    }
                     _ => {
                         let value: Result<String, _> = row.try_get(k.as_str());
                         let v = match value {
@@ -157,6 +148,18 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
 
     serde_json::to_string(&results).unwrap()
 }
+
+
+fn get_db_params() -> HashMap<String, String> {
+    // это только для теста, не храните реальные данные в dll!
+    let mut db_parameters = HashMap::<String, String>::new();
+    db_parameters.insert(String::from("host"), String::from("localhost"));
+    db_parameters.insert(String::from("dbname"), String::from("el_dabaa"));
+    db_parameters.insert(String::from("user"), String::from("postgres"));
+    db_parameters.insert(String::from("password"), String::from("''"));
+    db_parameters
+}
+
 
 #[cfg(test)]
 mod tests {

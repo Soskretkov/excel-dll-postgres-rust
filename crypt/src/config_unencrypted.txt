@@ -1,6 +1,0 @@
-{
-  "host": "localhost",
-  "dbname": "el_dabaa",
-  "user": "postgres",
-  "password": ""
-}
