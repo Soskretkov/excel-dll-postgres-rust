@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 mod vba_str_io;
-use postgres::{types::Type, Client, NoTls, Row};
+use tokio;
+use tokio_postgres::{types::Type, NoTls, Row};
+
 use vba_str_io::StringForVBA;
 
 #[no_mangle]
@@ -26,6 +28,7 @@ pub extern "stdcall" fn free_data(ptr: *mut StringForVBA) {
     }
 }
 
+//для вызова из кода на других языках, используется соглашение о вызове stdcall (обычно используемое в Windows для вызовов функций API)
 fn get_database_response(query: &str, db_access_parameters: HashMap<String, String>) -> String {
     // строка параметров для соединения с БД
     let parameter_string = format!(
@@ -36,22 +39,30 @@ fn get_database_response(query: &str, db_access_parameters: HashMap<String, Stri
         db_access_parameters.get("password").unwrap()
     );
 
-    // cоздаем клиент и подключаемся к БД
-    let mut client = Client::connect(&parameter_string, NoTls).unwrap();
-    // Client::connect("host=snuffleupagus.db.elephantsql.com user=meoqjyty password=kiBoRlI607cq8wV5s9-Muc9qf0_o0jIC dbname=meoqjyty", NoTls).unwrap();
+    // Tokio автоматически создает рантайм для асинхронных операций и не нужно его создавать (как тут), однако наш код не в асинхронной среде
+    let rt = tokio::runtime::Runtime::new().unwrap();
 
-    // выполняем запрос
-    let rows: Vec<Row> = client.query(query, &[]).unwrap();
+    // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
+    let (client, connection) = rt
+        .block_on(tokio_postgres::connect(&parameter_string, NoTls))
+        .unwrap();
+
+    rt.spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("connection error: {}", e);
+        }
+    });
+
+    let rows: Vec<Row> = rt.block_on(client.query(query, &[])).unwrap();
 
     // результаты запроса в String c json-контентом
     let json = rows_type_into_obj_in_arr_json(rows);
-  
+
     json
 }
 
 fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
-    use chrono::NaiveDate;
-    use indexmap::IndexMap; //чтобы сохранить порядок столбцов
+    use indexmap::IndexMap;
     use serde::ser::{SerializeMap, Serializer};
     use serde::Serialize;
     use serde_json::Value;
@@ -87,68 +98,53 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
         .map(|row| {
             let mut hmap: OrderedJson = OrderedJson::new();
 
-            for column in row.columns() {
+            for (i, column) in row.columns().iter().enumerate() {
                 let k = column.name().to_string();
-                match column.type_() {
+                let v: serde_json::Value = match column.type_() {
                     &Type::BOOL => {
-                        let v: bool = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<bool, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::INT2 => {
-                        let v: i16 = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<i16, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::INT4 => {
-                        let v: i32 = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<i32, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::INT8 => {
-                        let v: i64 = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<i64, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::FLOAT4 => {
-                        let v: f32 = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<f32, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::FLOAT8 => {
-                        let v: f64 = row.get(k.as_str());
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<f64, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_default())
                     }
                     &Type::DATE => {
-                        let v: Option<NaiveDate> = row.get(k.as_str());
-                        let base_date = NaiveDate::from_ymd_opt(1899, 12, 30);
-                        if let Some(base_date) = base_date {
-                            if let Some(v) = v {
-                                let duration = v.signed_duration_since(base_date);
-                                hmap.insert(k, serde_json::json!(duration.num_days()));
-                            } else {
-                                // Handle null value:
-                                hmap.insert(k, serde_json::json!(null));
-                            }
-                        } else {
-                            // Handle error:
-                            println!("Invalid base date");
-                        }
-                    }
-                    &Type::JSONB => {
+                        let v: Result<chrono::NaiveDate, _> = row.try_get(i);
+                        serde_json::json!(v
+                            .map(|date| date.format("%Y-%m-%d").to_string())
+                            .unwrap_or_default())
                     }
                     _ => {
-                        let value: Result<String, _> = row.try_get(k.as_str());
-                        let v = match value {
-                            Ok(v) => v,
-                            Err(_) => "".to_string(),
-                        };
-                        hmap.insert(k, serde_json::json!(v));
+                        let v: Result<String, _> = row.try_get(i);
+                        serde_json::json!(v.unwrap_or_else(|_| "".to_string()))
                     }
-                }
+                };
+                hmap.insert(k, v);
             }
+
             hmap
         })
         .collect();
 
     serde_json::to_string(&results).unwrap()
 }
-
 
 fn get_db_params() -> HashMap<String, String> {
     // это только для теста, не храните реальные данные в dll!
@@ -160,9 +156,108 @@ fn get_db_params() -> HashMap<String, String> {
     db_parameters
 }
 
-
 #[cfg(test)]
 mod tests {
     #[test]
     fn test() {}
 }
+
+// fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
+//     use chrono::NaiveDate;
+//     use indexmap::IndexMap; //чтобы сохранить порядок столбцов
+//     use serde::ser::{SerializeMap, Serializer};
+//     use serde::Serialize;
+//     use serde_json::Value;
+
+//     // сиротское правило не дает реализовать трейт Serialize непосредственно на IndexMap
+//     struct OrderedJson(IndexMap<String, Value>);
+
+//     impl Serialize for OrderedJson {
+//         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//         where
+//             S: Serializer,
+//         {
+//             let OrderedJson(ref inner_map) = *self;
+//             let mut map = serializer.serialize_map(Some(inner_map.len()))?;
+//             for (k, v) in inner_map {
+//                 map.serialize_entry(k, v)?;
+//             }
+//             map.end()
+//         }
+//     }
+
+//     impl OrderedJson {
+//         pub fn new() -> Self {
+//             OrderedJson(IndexMap::new())
+//         }
+//         pub fn insert(&mut self, key: String, value: Value) {
+//             self.0.insert(key, value);
+//         }
+//     }
+
+//     let results: Vec<_> = rows
+//         .into_iter()
+//         .map(|row| {
+//             let mut hmap: OrderedJson = OrderedJson::new();
+
+//             for column in row.columns() {
+//                 let k = column.name().to_string();
+//                 match column.type_() {
+//                     &Type::BOOL => {
+//                         let v: bool = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::INT2 => {
+//                         let v: i16 = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::INT4 => {
+//                         let v: i32 = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::INT8 => {
+//                         let v: i64 = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::FLOAT4 => {
+//                         let v: f32 = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::FLOAT8 => {
+//                         let v: f64 = row.get(k.as_str());
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                     &Type::DATE => {
+//                         let v: Option<NaiveDate> = row.get(k.as_str());
+//                         let base_date = NaiveDate::from_ymd_opt(1899, 12, 30);
+//                         if let Some(base_date) = base_date {
+//                             if let Some(v) = v {
+//                                 let duration = v.signed_duration_since(base_date);
+//                                 hmap.insert(k, serde_json::json!(duration.num_days()));
+//                             } else {
+//                                 // Handle null value:
+//                                 hmap.insert(k, serde_json::json!(null));
+//                             }
+//                         } else {
+//                             // Handle error:
+//                             println!("Invalid base date");
+//                         }
+//                     }
+//                     &Type::JSONB => {
+//                     }
+//                     _ => {
+//                         let value: Result<String, _> = row.try_get(k.as_str());
+//                         let v = match value {
+//                             Ok(v) => v,
+//                             Err(_) => "".to_string(),
+//                         };
+//                         hmap.insert(k, serde_json::json!(v));
+//                     }
+//                 }
+//             }
+//             hmap
+//         })
+//         .collect();
+
+//     serde_json::to_string(&results).unwrap()
+// }
