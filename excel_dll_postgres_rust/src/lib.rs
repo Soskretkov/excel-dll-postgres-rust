@@ -101,51 +101,57 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
             for (i, column) in row.columns().into_iter().enumerate() {
                 let k = column.name().to_string();
                 let v: serde_json::Value = match *column.type_() {
-                    Type::BOOL => {
-                        match row.try_get::<_, bool>(i) {
-                            Ok(v) => serde_json::json!(v),
-                            Err(_) => serde_json::json!(null),
+                    Type::BOOL => match row.try_get::<_, bool>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::CHAR => match row.try_get::<_, i8>(i) {
+                        Ok(v) => {
+                            let ch = char::from_u32(v as u32).unwrap_or('\0');
+                            serde_json::json!(ch.to_string())
                         }
-                    }
-                    Type::INT2 => {
-                        let v: Result<i16, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap())
-                    }
-                    Type::INT4 => {
-                        let v: Result<i32, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap())
-                    }
-                    Type::INT8 => {
-                        let v: Result<i64, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap())
-                    }
-                    Type::FLOAT4 => {
-                        let v: Result<f32, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap())
-                    }
-                    Type::FLOAT8 => {
-                        let v: Result<f64, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap())
-                    }
-                    Type::DATE => {
-                        let v: Result<NaiveDate, _> = row.try_get(i);
-                        let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
-                        match v {
-                            Ok(v) => {
-                                let duration = v.signed_duration_since(base_date);
-                                serde_json::json!(duration.num_days())
-                            }
-                            Err(_) => serde_json::json!(null),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::INT2 => match row.try_get::<_, i16>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::INT4 => match row.try_get::<_, i32>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::OID => match row.try_get::<_, u32>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::INT8 => match row.try_get::<_, i64>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::FLOAT4 => match row.try_get::<_, f32>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::FLOAT8 => match row.try_get::<_, f64>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
+                    Type::DATE => match row.try_get::<_, NaiveDate>(i) {
+                        Ok(v) => {
+                            let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+                            let duration = v.signed_duration_since(base_date);
+                            serde_json::json!(duration.num_days())
                         }
-                    }
-                    _ => {
-                        let v: Result<String, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_else(|_| "".to_string()))
-                    }
+                        Err(_) => serde_json::json!(null),
+                    },
+                    //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
+                    _ => match row.try_get::<_, String>(i) {
+                        Ok(v) => serde_json::json!(v),
+                        Err(_) => serde_json::json!(null),
+                    },
                 };
                 hmap.insert(k, v);
             }
-
             hmap
         })
         .collect();
@@ -168,6 +174,8 @@ mod tests {
     #[test]
     fn test() {}
 }
+
+
 
 // fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
 //     use chrono::NaiveDate;
