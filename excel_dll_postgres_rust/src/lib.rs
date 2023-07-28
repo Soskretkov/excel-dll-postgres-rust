@@ -2,7 +2,6 @@ use std::collections::HashMap;
 mod vba_str_io;
 use tokio;
 use tokio_postgres::{types::Type, NoTls, Row};
-
 use vba_str_io::StringForVBA;
 
 #[no_mangle]
@@ -62,6 +61,7 @@ fn get_database_response(query: &str, db_access_parameters: HashMap<String, Stri
 }
 
 fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
+    use chrono::NaiveDate;
     use indexmap::IndexMap;
     use serde::ser::{SerializeMap, Serializer};
     use serde::Serialize;
@@ -98,38 +98,45 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
         .map(|row| {
             let mut hmap: OrderedJson = OrderedJson::new();
 
-            for (i, column) in row.columns().iter().enumerate() {
+            for (i, column) in row.columns().into_iter().enumerate() {
                 let k = column.name().to_string();
-                let v: serde_json::Value = match column.type_() {
-                    &Type::BOOL => {
-                        let v: Result<bool, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                let v: serde_json::Value = match *column.type_() {
+                    Type::BOOL => {
+                        match row.try_get::<_, bool>(i) {
+                            Ok(v) => serde_json::json!(v),
+                            Err(_) => serde_json::json!(null),
+                        }
                     }
-                    &Type::INT2 => {
+                    Type::INT2 => {
                         let v: Result<i16, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                        serde_json::json!(v.unwrap())
                     }
-                    &Type::INT4 => {
+                    Type::INT4 => {
                         let v: Result<i32, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                        serde_json::json!(v.unwrap())
                     }
-                    &Type::INT8 => {
+                    Type::INT8 => {
                         let v: Result<i64, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                        serde_json::json!(v.unwrap())
                     }
-                    &Type::FLOAT4 => {
+                    Type::FLOAT4 => {
                         let v: Result<f32, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                        serde_json::json!(v.unwrap())
                     }
-                    &Type::FLOAT8 => {
+                    Type::FLOAT8 => {
                         let v: Result<f64, _> = row.try_get(i);
-                        serde_json::json!(v.unwrap_or_default())
+                        serde_json::json!(v.unwrap())
                     }
-                    &Type::DATE => {
-                        let v: Result<chrono::NaiveDate, _> = row.try_get(i);
-                        serde_json::json!(v
-                            .map(|date| date.format("%Y-%m-%d").to_string())
-                            .unwrap_or_default())
+                    Type::DATE => {
+                        let v: Result<NaiveDate, _> = row.try_get(i);
+                        let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+                        match v {
+                            Ok(v) => {
+                                let duration = v.signed_duration_since(base_date);
+                                serde_json::json!(duration.num_days())
+                            }
+                            Err(_) => serde_json::json!(null),
+                        }
                     }
                     _ => {
                         let v: Result<String, _> = row.try_get(i);
