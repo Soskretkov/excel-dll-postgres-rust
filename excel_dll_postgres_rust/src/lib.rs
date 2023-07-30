@@ -1,21 +1,77 @@
 use std::collections::HashMap;
+use std::fmt;
 mod vba_str_io;
 use tokio;
 use tokio_postgres::{types::Type, NoTls, Row};
 use vba_str_io::StringForVBA;
 
+#[derive(Debug)]
+enum Error {
+    InvalidUTF16FromVbaError,
+    DBConnectionError(tokio_postgres::Error),
+    SqlExecutionError(tokio_postgres::Error),
+    JsonSerializationError(serde_json::Error),
+    TokioRuntimeCreationError(std::io::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::InvalidUTF16FromVbaError => write!(
+                f,
+                "{}: {}",
+                "00", "не удалось привести запрос к формату UTF-16"
+            ),
+            Error::DBConnectionError(err) => write!(
+                f,
+                "{}: {}",
+                "10",
+                format!("ошибка подключения к базе данных: {}", err)
+            ),
+            Error::SqlExecutionError(err) => write!(
+                f,
+                "{}: {}",
+                "11",
+                format!("ошибка выполнения SQL-запроса: {}", err)
+            ),
+            Error::JsonSerializationError(err) => write!(
+                f,
+                "{}: {}",
+                "20",
+                format!("ошибка сериализации ответа БД в JSON: {}", err)
+            ),
+            Error::TokioRuntimeCreationError(err) => write!(
+                f,
+                "{}: {}",
+                "21",
+                format!("ошибка создания рантайма Tokio: {}", err)
+            ),
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
-    let sql_query = vba_str_io::get_string_from_vba(ptr);
+    let wraped_response: Result<String, Error> = {
+        || {
+            let sql_query = vba_str_io::get_string_from_vba(ptr)
+                .map_err(|_| Error::InvalidUTF16FromVbaError)?;
 
-    // параметры для подключения к БД
-    let my_db_parameters = get_db_params();
+            let my_db_params = get_db_params(); // параметры для подключения к БД
+            let db_response = get_database_response(&sql_query, my_db_params)?; // ответ БД
+            let json = rows_type_into_obj_in_arr_json(db_response)?;
+            Ok(json)
+        }
+    }();
 
-    // ответ от БД
-    let response = get_database_response(&sql_query, my_db_parameters);
+    let (is_valid, response) = match wraped_response {
+        Ok(response) => (true, response),
+        Err(err) => (false, format!("{}", err)),
+    };
 
     // конвертация в формат, ожидаемый на стороне vba
-    let response_for_vba = StringForVBA::from_string(response);
+    let mut response_for_vba = StringForVBA::from_string(response);
+    response_for_vba.validity_update(is_valid);
     response_for_vba.into_raw()
 }
 
@@ -28,7 +84,10 @@ pub extern "stdcall" fn free_data(ptr: *mut StringForVBA) {
 }
 
 //для вызова из кода на других языках, используется соглашение о вызове stdcall (обычно используемое в Windows для вызовов функций API)
-fn get_database_response(query: &str, db_access_parameters: HashMap<String, String>) -> String {
+fn get_database_response(
+    query: &str,
+    db_access_parameters: HashMap<String, String>,
+) -> Result<Vec<Row>, Error> {
     // строка параметров для соединения с БД
     let parameter_string = format!(
         "host={} dbname={} user={} password={}",
@@ -38,29 +97,26 @@ fn get_database_response(query: &str, db_access_parameters: HashMap<String, Stri
         db_access_parameters.get("password").unwrap()
     );
 
-    // Tokio автоматически создает рантайм для асинхронных операций и не нужно его создавать (как тут), однако наш код не в асинхронной среде
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
+    let rt = tokio::runtime::Runtime::new().map_err(Error::TokioRuntimeCreationError)?;
 
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
-        .unwrap();
+        .map_err(Error::DBConnectionError)?;
 
+    // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок
     rt.spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
         }
     });
 
-    let rows: Vec<Row> = rt.block_on(client.query(query, &[])).unwrap();
-
-    // результаты запроса в String c json-контентом
-    let json = rows_type_into_obj_in_arr_json(rows);
-
-    json
+    rt.block_on(client.query(query, &[]))
+        .map_err(Error::SqlExecutionError)
 }
 
-fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
+fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> Result<String, Error> {
     use chrono::NaiveDate;
     use indexmap::IndexMap;
     use serde::ser::{SerializeMap, Serializer};
@@ -145,8 +201,8 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
                         }
                         Err(_) => serde_json::json!(null),
                     },
-                    //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
                     _ => match row.try_get::<_, String>(i) {
+                        //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
                         Ok(v) => serde_json::json!(v),
                         Err(_) => serde_json::json!(null),
                     },
@@ -157,7 +213,7 @@ fn rows_type_into_obj_in_arr_json(rows: Vec<Row>) -> String {
         })
         .collect();
 
-    serde_json::to_string(&results).unwrap()
+    Ok(serde_json::to_string(&results).map_err(Error::JsonSerializationError)?)
 }
 
 fn get_db_params() -> HashMap<String, String> {

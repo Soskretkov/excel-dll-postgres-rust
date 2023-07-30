@@ -1,4 +1,5 @@
 use std::slice;
+use std::string::FromUtf16Error;
 
 // структура по которой vba получает строку, #[repr(C)] фиксирует поля в порядке как задал программист
 #[repr(C)]
@@ -25,7 +26,7 @@ impl StringForVBA {
             is_valid: true,
             length_in_bytes,
             _data: boxed_data,
-        }   
+        }
     }
 
     pub fn validity_update(&mut self, is_valid: bool) {
@@ -37,8 +38,7 @@ impl StringForVBA {
     }
 }
 
-
-pub fn get_string_from_vba(bstr_ptr: *const u16) -> String {
+pub fn get_string_from_vba(bstr_ptr: *const u16) -> Result<String, FromUtf16Error> {
     // вычисление длины строки
     let bstr_len_ptr = unsafe { bstr_ptr.offset(-2) as *const u32 };
 
@@ -46,5 +46,5 @@ pub fn get_string_from_vba(bstr_ptr: *const u16) -> String {
 
     // создание среза: второй параметр это число итераций, длина итерантов определяется по типу указателя (2 байта у нас)
     let slice = unsafe { slice::from_raw_parts(bstr_ptr, (bstr_len_in_bytes / 2) as usize) }; // создание среза
-    String::from_utf16(slice).unwrap()
+    String::from_utf16(slice)
 }
