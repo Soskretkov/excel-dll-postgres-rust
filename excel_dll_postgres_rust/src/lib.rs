@@ -1,52 +1,24 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::str::FromStr;
 mod vba_str_io;
+use serde::Deserialize;
 use tokio;
 use tokio_postgres::{types::Type, NoTls, Row};
 use vba_str_io::StringForVBA;
 
-#[derive(Debug)]
-enum Error {
-    InvalidUTF16FromVbaError,
-    DBConnectionError(tokio_postgres::Error),
-    SqlExecutionError(tokio_postgres::Error),
-    JsonSerializationError(serde_json::Error),
-    TokioRuntimeCreationError(std::io::Error),
+#[derive(Debug, Deserialize)]
+struct VBARequest {
+    sheet_name: String,
+    sql_query: String,
+    pg_current_wal_lsn: String,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::InvalidUTF16FromVbaError => write!(
-                f,
-                "{}: {}",
-                "00", "не удалось привести запрос к формату UTF-16"
-            ),
-            Error::DBConnectionError(err) => write!(
-                f,
-                "{}: {}",
-                "10",
-                format!("ошибка подключения к базе данных: {}", err)
-            ),
-            Error::SqlExecutionError(err) => write!(
-                f,
-                "{}: {}",
-                "11",
-                format!("ошибка выполнения SQL-запроса: {}", err)
-            ),
-            Error::JsonSerializationError(err) => write!(
-                f,
-                "{}: {}",
-                "20",
-                format!("ошибка сериализации ответа БД в JSON: {}", err)
-            ),
-            Error::TokioRuntimeCreationError(err) => write!(
-                f,
-                "{}: {}",
-                "21",
-                format!("ошибка создания рантайма Tokio: {}", err)
-            ),
-        }
+impl FromStr for VBARequest {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(serde_json::from_str(s).map_err(Error::JsonDeserializationError)?)
     }
 }
 
@@ -54,12 +26,17 @@ impl fmt::Display for Error {
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
     let wraped_response: Result<String, Error> = {
         || {
-            let sql_query = vba_str_io::get_string_from_vba(ptr)
+            let string_from_vba = vba_str_io::get_string_from_vba(ptr)
                 .map_err(|_| Error::InvalidUTF16FromVbaError)?;
 
+            let vba_request = VBARequest::from_str(&string_from_vba)?;
+
             let my_db_params = get_db_params(); // параметры для подключения к БД
-            let db_response = get_database_response(&sql_query, my_db_params)?; // ответ БД
+
+            let db_response = get_database_response(&vba_request.sql_query, my_db_params)?; // ответ БД
+
             let json = rows_type_into_obj_in_arr_json(db_response)?;
+
             Ok(json)
         }
     }();
@@ -226,6 +203,57 @@ fn get_db_params() -> HashMap<String, String> {
     db_parameters
 }
 
+#[derive(Debug)]
+enum Error {
+    InvalidUTF16FromVbaError,
+    DBConnectionError(tokio_postgres::Error),
+    SqlExecutionError(tokio_postgres::Error),
+    TokioRuntimeCreationError(std::io::Error),
+    JsonSerializationError(serde_json::Error),
+    JsonDeserializationError(serde_json::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::DBConnectionError(err) => write!(
+                f,
+                "{}: {}",
+                "01",
+                format!("не удалось подключение к базе данных: {}", err)
+            ),
+            Error::SqlExecutionError(err) => write!(
+                f,
+                "{}: {}",
+                "02",
+                format!("не удалось выполнить SQL-запрос: {}", err)
+            ),
+            Error::InvalidUTF16FromVbaError => write!(
+                f,
+                "{}: {}",
+                "10", "не удалось конвертировать запрос в UTF-16"
+            ),
+            Error::JsonSerializationError(err) => write!(
+                f,
+                "{}: {}",
+                "11",
+                format!("не удалось сериализовать ответ БД в JSON-формат: {}", err)
+            ),
+            Error::TokioRuntimeCreationError(err) => write!(
+                f,
+                "{}: {}",
+                "12",
+                format!("не удалось создать рантайм Tokio: {}", err)
+            ),
+            Error::JsonDeserializationError(err) => write!(
+                f,
+                "{}: {}",
+                "03",
+                format!("не валидные аргументы переданы от vba в dll: {}", err)
+            ),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     #[test]
