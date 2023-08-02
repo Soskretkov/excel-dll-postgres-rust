@@ -60,7 +60,7 @@ impl OrderedJson {
 
 #[no_mangle]
 pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
-    let wraped_sent_json_txt: Result<_, Error> = {
+    let wraped_responses_vec: Result<_, Error> = {
         || {
             let string_from_vba =
                 vba_str_io::get_string_from_vba(ptr).map_err(|_| Error::InvalidUTF16FromVba)?;
@@ -70,21 +70,32 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
 
             let my_db_params = get_db_params(); // параметры для подключения к БД
 
-            let rows_vec = get_database_response(&excel_requests, my_db_params)?; // ответ БД
+            let tokio_rows_vec = get_database_response(&excel_requests, my_db_params)?; // ответ БД
 
-            let orderedjson_vec = rows_type_into_obj_in_arr_json(excel_requests, rows_vec);
+            let responses_vec = rows_type_into_obj_in_arr_json(excel_requests, tokio_rows_vec);
 
-            let sent_json_txt =
-                serde_json::to_string(&orderedjson_vec).map_err(Error::JsonSerialization);
-
-            Ok(orderedjson_vec)
+            Ok(responses_vec)
         }
     }();
 
-    let sent_json_txt = serde_json::to_string(&wraped_sent_json_txt.unwrap()).unwrap();
+    // let wraped_sent_json_txt =
+    //     serde_json::to_string(&wraped_responses_vec).map_err(Error::JsonSerialization);
+    // let (sent_json_txt, is_valid) = match wraped_sent_json_txt {
+    //     Ok(sent_json_txt) => (sent_json_txt, true),
+    //     Err(err) => (format!("{}", err), false),
+    // };
+
+    // сериализация и текст json-ошибки для excel на случай провала
+    let sent_json_txt = serde_json::to_string(&wraped_responses_vec)
+        .map_err(Error::JsonSerialization)
+        .unwrap_or_else(|err| serde_json::json!({ "Err": err.to_string() }).to_string());
+
+    // тест
+    // let sent_json_txt =  serde_json::json!({ "Err": format!("не удалось сериализовать ответ БД в JSON-формат: {}", "ОШИБКА") }).to_string();
 
     // конвертация в формат, ожидаемый на стороне vba
     let string_for_vba = StringForVBA::from_string(sent_json_txt);
+    // string_for_vba.validity_update(is_valid);
     string_for_vba.into_raw()
 }
 
@@ -143,75 +154,70 @@ fn rows_type_into_obj_in_arr_json(
 ) -> Vec<ExcelResponse> {
     let mut res = Vec::with_capacity(excel_requests.len());
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
-        let data = match rows_vec {
-            Ok(rows) => {
-                let inner_result: Vec<_> = rows
-                    .into_iter()
-                    .map(|row| {
-                        let mut hmap: OrderedJson = OrderedJson::new();
+        let data = rows_vec.map(|rows| {
+            rows.into_iter()
+                .map(|row| {
+                    let mut hmap: OrderedJson = OrderedJson::new();
 
-                        for (i, column) in row.columns().into_iter().enumerate() {
-                            let k = column.name().to_string();
-                            let v: serde_json::Value = match *column.type_() {
-                                Type::BOOL => match row.try_get::<_, bool>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::CHAR => match row.try_get::<_, i8>(i) {
-                                    Ok(v) => {
-                                        let ch = char::from_u32(v as u32).unwrap_or('\0');
-                                        serde_json::json!(ch.to_string())
-                                    }
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::INT2 => match row.try_get::<_, i16>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::INT4 => match row.try_get::<_, i32>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::OID => match row.try_get::<_, u32>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::INT8 => match row.try_get::<_, i64>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::FLOAT4 => match row.try_get::<_, f32>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::FLOAT8 => match row.try_get::<_, f64>(i) {
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                Type::DATE => match row.try_get::<_, NaiveDate>(i) {
-                                    Ok(v) => {
-                                        // let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
-                                        // let duration = v.signed_duration_since(base_date);
-                                        // serde_json::json!(duration.num_days())
-                                        serde_json::json!(v.format("%Y-%m-%d").to_string())
-                                    }
-                                    Err(_) => serde_json::json!(null),
-                                },
-                                _ => match row.try_get::<_, String>(i) {
-                                    //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
-                                    Ok(v) => serde_json::json!(v),
-                                    Err(_) => serde_json::json!(null),
-                                },
-                            };
-                            hmap.insert(k, v);
-                        }
-                        hmap
-                    })
-                    .collect();
-                Ok(inner_result)
-            }
-            Err(err) => Err(err),
-        };
+                    for (i, column) in row.columns().into_iter().enumerate() {
+                        let k = column.name().to_string();
+                        let v: serde_json::Value = match *column.type_() {
+                            Type::BOOL => match row.try_get::<_, bool>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::CHAR => match row.try_get::<_, i8>(i) {
+                                Ok(v) => {
+                                    let ch = char::from_u32(v as u32).unwrap_or('\0');
+                                    serde_json::json!(ch.to_string())
+                                }
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::INT2 => match row.try_get::<_, i16>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::INT4 => match row.try_get::<_, i32>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::OID => match row.try_get::<_, u32>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::INT8 => match row.try_get::<_, i64>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::FLOAT4 => match row.try_get::<_, f32>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::FLOAT8 => match row.try_get::<_, f64>(i) {
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                            Type::DATE => match row.try_get::<_, NaiveDate>(i) {
+                                Ok(v) => {
+                                    // let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+                                    // let duration = v.signed_duration_since(base_date);
+                                    // serde_json::json!(duration.num_days())
+                                    serde_json::json!(v.format("%Y-%m-%d").to_string())
+                                }
+                                Err(_) => serde_json::json!(null),
+                            },
+                            _ => match row.try_get::<_, String>(i) {
+                                //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
+                                Ok(v) => serde_json::json!(v),
+                                Err(_) => serde_json::json!(null),
+                            },
+                        };
+                        hmap.insert(k, v);
+                    }
+                    hmap
+                })
+                .collect()
+        });
 
         let excel_response = ExcelResponse {
             data,
@@ -250,26 +256,26 @@ impl fmt::Display for Error {
         match self {
             Error::DBConnection(err) => write!(
                 f,"{}: {}", "01",
-                format!("не удалось подключение к базе данных:\r\n{}", err)
+                format!("не удалось подключение к базе данных: {}", err)
             ),
             Error::SqlExecution(err) => write!(
                 f,"{}: {}", "02",
-                format!("не удалось выполнить SQL-запрос:\r\n{}", err)
+                format!("не удалось выполнить SQL-запрос: {}", err)
             ),
             Error::JsonDeserialization(err) => write!(
                 f,"{}: {}", "03",
-                format!("не валидные аргументы переданы от vba в dll:\r\n{}", err)
+                format!("не валидные аргументы переданы из vba-кода макроса Excel в dll: {}", err)
             ),
             Error::InvalidUTF16FromVba => write!(
                 f,"{}: {}", "10", "не удалось конвертировать запрос в UTF-16"
             ),
             Error::JsonSerialization(err) => write!(
                 f,"{}: {}", "11",
-                format!("не удалось сериализовать ответ БД в JSON-формат:\r\n{}", err)
+                format!("не удалось сериализовать ответ БД в JSON-формат: {}", err)
             ),
             Error::TokioRuntimeCreation(err) => write!(
                 f,"{}: {}", "12",
-                format!("не удалось создать рантайм Tokio:\r\n{}", err)
+                format!("не удалось создать рантайм Tokio: {}", err)
             ),
         }
     }
