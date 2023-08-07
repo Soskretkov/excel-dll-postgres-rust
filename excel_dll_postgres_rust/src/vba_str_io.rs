@@ -3,14 +3,14 @@ use std::string::FromUtf16Error;
 
 // структура по которой vba получает строку, #[repr(C)] фиксирует поля в порядке как задал программист
 #[repr(C)]
-pub struct StringForVBA {
+pub struct StringForVba {
     ptr: *mut u16,
     is_valid: bool,
     length_in_bytes: i32,
     _data: Box<Vec<u16>>, // это поле не будет читаться VBA и оно тут для выравнивания времени жизни с полем "ptr" для того чтобы vba читал действительный "ptr"
 }
 
-impl StringForVBA {
+impl StringForVba {
     pub fn from_string(text: String) -> Self {
         //.encode_utf16() правильно обрабатывает суррогатные пары Unicode (возвращает итератор 16-битных юнитов кодировки UTF-16).
         let data: Vec<u16> = text.encode_utf16().collect();
@@ -21,7 +21,7 @@ impl StringForVBA {
         let boxed_data = Box::new(data);
         let ptr = boxed_data.as_ptr() as *mut u16;
 
-        StringForVBA {
+        StringForVba {
             ptr,
             is_valid: true,
             length_in_bytes,
@@ -33,7 +33,7 @@ impl StringForVBA {
         self.is_valid = is_valid;
     }
 
-    pub fn into_raw(self) -> *mut StringForVBA {
+    pub fn into_raw(self) -> *mut StringForVba {
         Box::into_raw(Box::new(self))
     }
 }

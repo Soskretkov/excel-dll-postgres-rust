@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 use std::str::FromStr;
 mod vba_str_io;
 use chrono::NaiveDate;
@@ -10,15 +9,17 @@ use serde::Serialize;
 use serde_json::Value;
 use tokio;
 use tokio_postgres::{types::Type, NoTls, Row};
-use vba_str_io::StringForVBA;
+use vba_str_io::StringForVba;
+mod error;
+use error::Error;
 
 #[derive(Deserialize)]
-struct ExcelRequest {
+struct ApiRequest {
     sql_query: String,
     requesters_id: Option<String>, //имя листа или таблицы
 }
 
-impl FromStr for ExcelRequest {
+impl FromStr for ApiRequest {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -27,7 +28,7 @@ impl FromStr for ExcelRequest {
 }
 
 #[derive(Serialize)]
-struct ExcelResponse {
+struct ApiResponse {
     data: Result<Vec<OrderedJson>, Error>,
     requesters_id: Option<String>,
 }
@@ -59,13 +60,13 @@ impl OrderedJson {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
+pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
     let wraped_responses_vec: Result<_, Error> = {
         || {
             let string_from_vba =
-                vba_str_io::get_string_from_vba(ptr).map_err(|_| Error::InvalidUTF16FromVba)?;
+                vba_str_io::get_string_from_vba(ptr).map_err(Error::InvalidUtf16OnInput)?;
 
-            let excel_requests: Vec<ExcelRequest> =
+            let excel_requests: Vec<ApiRequest> =
                 serde_json::from_str(&string_from_vba).map_err(Error::JsonDeserialization)?;
 
             let my_db_params = get_db_params(); // параметры для подключения к БД
@@ -94,25 +95,22 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVBA {
     // let sent_json_txt =  serde_json::json!({ "Err": format!("не удалось сериализовать ответ БД в JSON-формат: {}", "ОШИБКА") }).to_string();
 
     // конвертация в формат, ожидаемый на стороне vba
-    let string_for_vba = StringForVBA::from_string(sent_json_txt);
-    // string_for_vba.validity_update(is_valid);
+    let string_for_vba = StringForVba::from_string(sent_json_txt);
     string_for_vba.into_raw()
 }
 
 #[no_mangle]
-pub extern "stdcall" fn free_data(ptr: *mut StringForVBA) {
-    unsafe {
-        // освобождаем память под структурой
-        drop(Box::from_raw(ptr));
+pub extern "stdcall" fn free_data(ptr: *mut StringForVba) {
+    unsafe {        
+        drop(Box::from_raw(ptr)); // освобождаем память
     }
 }
 
 //для вызова из кода на других языках, используется соглашение о вызове stdcall (обычно используемое в Windows для вызовов функций API)
 fn get_database_response(
-    excel_requests: &[ExcelRequest],
+    excel_requests: &[ApiRequest],
     db_access_parameters: HashMap<String, String>,
 ) -> Result<Vec<Result<Vec<Row>, Error>>, Error> {
-    // ) -> Option<Result<Vec<Row>, Error>> {
     // строка параметров для соединения с БД
     let parameter_string = format!(
         "host={} dbname={} user={} password={}",
@@ -149,9 +147,9 @@ fn get_database_response(
 }
 
 fn rows_type_into_obj_in_arr_json(
-    excel_requests: Vec<ExcelRequest>,
+    excel_requests: Vec<ApiRequest>,
     data_vec: Vec<Result<Vec<Row>, Error>>,
-) -> Vec<ExcelResponse> {
+) -> Vec<ApiResponse> {
     let mut res = Vec::with_capacity(excel_requests.len());
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
         let data = rows_vec.map(|rows| {
@@ -219,7 +217,7 @@ fn rows_type_into_obj_in_arr_json(
                 .collect()
         });
 
-        let excel_response = ExcelResponse {
+        let excel_response = ApiResponse {
             data,
             requesters_id: request.requesters_id,
         };
@@ -238,57 +236,6 @@ fn get_db_params() -> HashMap<String, String> {
     db_parameters.insert(String::from("user"), String::from("postgres"));
     db_parameters.insert(String::from("password"), String::from("''"));
     db_parameters
-}
-
-#[derive(Debug)] #[rustfmt::skip]
-enum Error {
-    InvalidUTF16FromVba,
-    DBConnection(tokio_postgres::Error),
-    SqlExecution(tokio_postgres::Error),
-    TokioRuntimeCreation(std::io::Error),
-    JsonSerialization(serde_json::Error),
-    JsonDeserialization(serde_json::Error),
-}
-
-#[rustfmt::skip]
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::DBConnection(err) => write!(
-                f,"{}: {}", "01",
-                format!("не удалось подключение к базе данных: {}", err)
-            ),
-            Error::SqlExecution(err) => write!(
-                f,"{}: {}", "02",
-                format!("не удалось выполнить SQL-запрос: {}", err)
-            ),
-            Error::JsonDeserialization(err) => write!(
-                f,"{}: {}", "03",
-                format!("не валидные аргументы переданы из vba-кода макроса Excel в dll: {}", err)
-            ),
-            Error::InvalidUTF16FromVba => write!(
-                f,"{}: {}", "10", "не удалось конвертировать запрос в UTF-16"
-            ),
-            Error::JsonSerialization(err) => write!(
-                f,"{}: {}", "11",
-                format!("не удалось сериализовать ответ БД в JSON-формат: {}", err)
-            ),
-            Error::TokioRuntimeCreation(err) => write!(
-                f,"{}: {}", "12",
-                format!("не удалось создать рантайм Tokio: {}", err)
-            ),
-        }
-    }
-}
-
-impl Serialize for Error {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let error_str = self.to_string();
-        serializer.serialize_str(&error_str)
-    }
 }
 
 #[cfg(test)]
