@@ -157,6 +157,7 @@ fn rows_type_into_obj_in_arr_json(
                 .map(|row| {
                     let mut hmap: OrderedJson = OrderedJson::new();
 
+                    //потенциально добавить: pg_lsn
                     for (i, column) in row.columns().into_iter().enumerate() {
                         let k = column.name().to_string();
                         let v: serde_json::Value = match *column.type_() {
