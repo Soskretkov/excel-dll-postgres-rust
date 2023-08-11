@@ -7,7 +7,6 @@ use serde::ser::{SerializeMap, Serializer};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
-use tokio;
 use tokio_postgres::{types::Type, NoTls, Row};
 use vba_str_io::StringForVba;
 mod error;
@@ -23,7 +22,7 @@ impl FromStr for ApiRequest {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(serde_json::from_str(s).map_err(Error::JsonDeserialization)?)
+        serde_json::from_str(s).map_err(Error::JsonDeserialization)
     }
 }
 
@@ -96,10 +95,8 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
 }
 
 #[no_mangle]
-pub extern "stdcall" fn free_data(ptr: *mut StringForVba) {
-    unsafe {        
-        drop(Box::from_raw(ptr)); // освобождаем память
-    }
+pub unsafe extern "stdcall" fn free_data(ptr: *mut StringForVba) {
+    drop(Box::from_raw(ptr)); // освобождаем память
 }
 
 //для вызова из кода на других языках, используется соглашение о вызове stdcall (обычно используемое в Windows для вызовов функций API)
@@ -154,7 +151,7 @@ fn rows_type_into_obj_in_arr_json(
                     let mut hmap: OrderedJson = OrderedJson::new();
 
                     //потенциально добавить: pg_lsn
-                    for (i, column) in row.columns().into_iter().enumerate() {
+                    for (i, column) in row.columns().iter().enumerate() {
                         let k = column.name().to_string();
                         let v: serde_json::Value = match *column.type_() {
                             Type::BOOL => match row.try_get::<_, bool>(i) {

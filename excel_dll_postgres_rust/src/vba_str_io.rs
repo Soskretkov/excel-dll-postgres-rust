@@ -7,7 +7,8 @@ pub struct StringForVba {
     ptr: *mut u16,
     is_valid: bool,
     length_in_bytes: i32,
-    _data: Box<Vec<u16>>, // это поле не будет читаться VBA и оно тут для выравнивания времени жизни с полем "ptr" для того чтобы vba читал действительный "ptr"
+    _data: Vec<u16>, // это поле не будет читаться VBA и оно тут для выравнивания времени жизни с полем "ptr" для того чтобы vba читал действительный "ptr"
+
 }
 
 impl StringForVba {
@@ -18,14 +19,13 @@ impl StringForVba {
             .try_into()
             .unwrap();
 
-        let boxed_data = Box::new(data);
-        let ptr = boxed_data.as_ptr() as *mut u16;
+        let ptr = data.as_ptr() as *mut u16;
 
         StringForVba {
             ptr,
             is_valid: true,
             length_in_bytes,
-            _data: boxed_data,
+            _data: data,
         }
     }
 
