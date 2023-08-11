@@ -7,6 +7,7 @@ use serde::ser::{SerializeMap, Serializer};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::runtime;
 use tokio_postgres::{types::Type, NoTls, Row};
 use vba_str_io::StringForVba;
 mod error;
@@ -114,7 +115,7 @@ fn get_database_response(
     );
 
     // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
-    let rt = tokio::runtime::Runtime::new().map_err(Error::TokioRuntimeCreation)?;
+    let rt = runtime::Runtime::new().map_err(Error::TokioRuntimeCreation)?;
 
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
