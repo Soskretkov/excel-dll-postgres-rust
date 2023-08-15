@@ -6,9 +6,9 @@ use indexmap::IndexMap;
 use serde::ser::{SerializeMap, Serializer};
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::runtime;
-use tokio_postgres::{types::Type, NoTls, Row};
+use tokio_postgres::{types::Type, Column, NoTls, Row};
 use vba_str_io::StringForVba;
 mod error;
 use error::Error;
@@ -17,6 +17,7 @@ use error::Error;
 struct ApiRequest {
     sql_query: String,
     requesters_id: Option<String>, //имя листа или таблицы
+    is_obj_in_arr_response: bool,
 }
 
 impl FromStr for ApiRequest {
@@ -27,9 +28,26 @@ impl FromStr for ApiRequest {
     }
 }
 
+enum ResponseType {
+    ArrInObj(OrderedJson),
+    ObjInArr(Vec<OrderedJson>),
+}
+
+impl Serialize for ResponseType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ResponseType::ArrInObj(value) => value.serialize(serializer),
+            ResponseType::ObjInArr(value) => value.serialize(serializer),
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct ApiResponse {
-    data: Result<Vec<OrderedJson>, Error>,
+    data: Result<ResponseType, Error>,
     requesters_id: Option<String>,
 }
 
@@ -41,9 +59,8 @@ impl Serialize for OrderedJson {
     where
         S: Serializer,
     {
-        let OrderedJson(ref inner_map) = *self;
-        let mut map = serializer.serialize_map(Some(inner_map.len()))?;
-        for (k, v) in inner_map {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (k, v) in &self.0 {
             map.serialize_entry(k, v)?;
         }
         map.end()
@@ -73,7 +90,7 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
 
             let tokio_rows_vec = get_database_response(&excel_requests, my_db_params)?; // ответ БД
 
-            let responses_vec = rows_type_into_obj_in_arr_json(excel_requests, tokio_rows_vec);
+            let responses_vec = map_rows_to_api_responses_vec(excel_requests, tokio_rows_vec);
 
             Ok(responses_vec)
         }
@@ -82,12 +99,14 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
     // сериализация и собственная ошибка на случай провала serde_json
     let sent_json_txt = serde_json::to_string(&wraped_responses_vec)
         .map_err(Error::JsonSerialization)
-        .unwrap_or_else(|err| serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(err)).to_string());
+        .unwrap_or_else(|err| {
+            serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(err)).to_string()
+        });
 
     //тест
     // let forced_error = Error::JsonSerialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::Other, "forced serialization error")));
     // let sent_json_txt = serde_json::to_string(&Result::<Vec<ApiResponse>, Error>::Err(forced_error))
-    //     .unwrap_or_else(|err| serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(Error::JsonSerialization(err))).to_string());      
+    //     .unwrap_or_else(|err| serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(Error::JsonSerialization(err))).to_string());
     // let sent_json_txt =  serde_json::json!({"Err":{"code":1004,"descr":"не удалось сериализовать ответ БД в JSON","tech_descr":""}}).to_string(); //тест 2
 
     // конвертация в формат, ожидаемый на стороне vba
@@ -140,76 +159,34 @@ fn get_database_response(
     Ok(res)
 }
 
-fn rows_type_into_obj_in_arr_json(
+fn map_rows_to_api_responses_vec(
     excel_requests: Vec<ApiRequest>,
     data_vec: Vec<Result<Vec<Row>, Error>>,
 ) -> Vec<ApiResponse> {
     let mut res = Vec::with_capacity(excel_requests.len());
-    for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
-        let data = rows_vec.map(|rows| {
-            rows.into_iter()
-                .map(|row| {
-                    let mut hmap: OrderedJson = OrderedJson::new();
 
-                    //потенциально добавить: pg_lsn
-                    for (i, column) in row.columns().iter().enumerate() {
-                        let k = column.name().to_string();
-                        let v: serde_json::Value = match *column.type_() {
-                            Type::BOOL => match row.try_get::<_, bool>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::CHAR => match row.try_get::<_, i8>(i) {
-                                Ok(v) => {
-                                    let ch = char::from_u32(v as u32).unwrap_or('\0');
-                                    serde_json::json!(ch.to_string())
-                                }
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::INT2 => match row.try_get::<_, i16>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::INT4 => match row.try_get::<_, i32>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::OID => match row.try_get::<_, u32>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::INT8 => match row.try_get::<_, i64>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::FLOAT4 => match row.try_get::<_, f32>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::FLOAT8 => match row.try_get::<_, f64>(i) {
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                            Type::DATE => match row.try_get::<_, NaiveDate>(i) {
-                                Ok(v) => {
-                                    // let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
-                                    // let duration = v.signed_duration_since(base_date);
-                                    // serde_json::json!(duration.num_days())
-                                    serde_json::json!(v.format("%Y-%m-%d").to_string())
-                                }
-                                Err(_) => serde_json::json!(null),
-                            },
-                            _ => match row.try_get::<_, String>(i) {
-                                //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
-                                Ok(v) => serde_json::json!(v),
-                                Err(_) => serde_json::json!(null),
-                            },
-                        };
-                        hmap.insert(k, v);
-                    }
-                    hmap
-                })
-                .collect()
+    for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
+        let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_response {
+            true => {
+                let res = rows
+                    .into_iter()
+                    .map(|row| {
+                        let mut hmap: OrderedJson = OrderedJson::new();
+
+                        for column in row.columns().iter() {
+                            let k = column.name().to_string();
+                            let v = convert_to_serde_json_type(&row, column);
+
+                            hmap.insert(k, v);
+                        }
+                        hmap
+                    })
+                    .collect();
+
+                Ok(ResponseType::ObjInArr(res))
+            }
+
+            false => unimplemented!(),
         });
 
         let excel_response = ApiResponse {
@@ -219,8 +196,62 @@ fn rows_type_into_obj_in_arr_json(
 
         res.push(excel_response);
     }
-
     res
+}
+
+fn convert_to_serde_json_type(row: &Row, column: &Column) -> Value {
+    //потенциально добавить: pg_lsn
+    match *column.type_() {
+        Type::BOOL => match row.try_get::<_, bool>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::CHAR => match row.try_get::<_, i8>(column.name()) {
+            Ok(v) => {
+                let ch = char::from_u32(v as u32).unwrap_or('\0');
+                json!(ch.to_string())
+            }
+            Err(_) => Value::Null,
+        },
+        Type::INT2 => match row.try_get::<_, i16>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::INT4 => match row.try_get::<_, i32>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::OID => match row.try_get::<_, u32>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::INT8 => match row.try_get::<_, i64>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::FLOAT4 => match row.try_get::<_, f32>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::FLOAT8 => match row.try_get::<_, f64>(column.name()) {
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+        Type::DATE => match row.try_get::<_, NaiveDate>(column.name()) {
+            Ok(v) => {
+                // let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
+                // let duration = v.signed_duration_since(base_date);
+                // json!(duration.num_days())
+                json!(v.format("%Y-%m-%d").to_string())
+            }
+            Err(_) => Value::Null,
+        },
+        _ => match row.try_get::<_, String>(column.name()) {
+            //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
+            Ok(v) => json!(v),
+            Err(_) => Value::Null,
+        },
+    }
 }
 
 fn get_db_params() -> HashMap<String, String> {
