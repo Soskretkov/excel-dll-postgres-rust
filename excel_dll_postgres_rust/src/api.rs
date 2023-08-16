@@ -58,12 +58,13 @@ pub fn map_rows_to_api_responses_vec(
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
         let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_tbl {
             true => {
-                let vec = json_utils::pack_tbl_into_obj_in_arr(rows)?;
-                Ok(ResponseType::ObjInArr(vec))
+                let pack_tbl = json_utils::pack_tbl_into_obj_in_arr(rows);
+                // любые ошибки пакуем в ApiResponse, не прерывая обработку остальных запросов
+                pack_tbl.and_then(|vec| Ok(ResponseType::ObjInArr(vec)))
             }
             false => {
-                let index_map = json_utils::pack_tbl_into_arr_in_obj(rows)?;
-                Ok(ResponseType::ArrInObj(OrderedJson(index_map)))
+                let pack_tbl = json_utils::pack_tbl_into_arr_in_obj(rows);
+                pack_tbl.and_then(|index_map| Ok(ResponseType::ArrInObj(OrderedJson(index_map))))
             }
         });
 
