@@ -1,13 +1,20 @@
+// Назначение модуля кратко:  предоставляет утилиты и функций, которые упрощают работу с JSON.
+// Подробное описание: модуль может содержать функции безопасного парсинга JSON, преобразования данных
+// в JSON и обратно, валидации JSON-структур и так далее. Этот модуль может быть полезен в разных
+// частях приложения, а не только в контексте API. По этой причине код отделен от модуля api.rs с
+// целью соблюдения принципа единственной ответственности.
+use super::Error;
+use chrono::NaiveDate;
 use indexmap::IndexMap;
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
-use tokio_postgres::{types::Type, Column};
-use chrono::NaiveDate;
 use serde_json::{json, Value};
 use tokio_postgres::Row;
+use tokio_postgres::{types::Type, Column};
 
 // сиротское правило не дает реализовать трейт Serialize непосредственно на IndexMap
-pub struct OrderedJson(IndexMap<String, Value>);
+// IndexMap выбран потому что сохраняет порядок в которой вносятся ключи
+pub struct OrderedJson(pub IndexMap<String, Value>);
 
 impl Serialize for OrderedJson {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -29,6 +36,49 @@ impl OrderedJson {
     pub fn insert(&mut self, key: String, value: Value) {
         self.0.insert(key, value);
     }
+}
+
+pub fn pack_tbl_into_obj_in_arr(rows: Vec<Row>) -> Vec<OrderedJson> {
+    rows.into_iter()
+        .map(|row| {
+            let mut hmap = OrderedJson::new();
+
+            for column in row.columns().iter() {
+                let k = column.name().to_string();
+                let v = convert_to_serde_json_type(&row, column);
+
+                hmap.insert(k, v);
+            }
+            hmap
+        })
+        .collect()
+}
+
+pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value>, Error> {
+    let mut hmap = IndexMap::new();
+
+    for row in &rows {
+        for column in row.columns().iter() {
+            let value = hmap
+                .entry(column.name().to_string())
+                .or_insert_with(|| Value::Array(Vec::with_capacity(rows.len())));
+
+            let v = convert_to_serde_json_type(row, column);
+
+            match value {
+                Value::Array(arr) => {
+                    arr.push(v);
+                }
+                _ => {
+                    return Err(Error::InternalLogic(
+                        "значение IndexMap не serde_json::value::Array".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(hmap)
 }
 
 pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Value {

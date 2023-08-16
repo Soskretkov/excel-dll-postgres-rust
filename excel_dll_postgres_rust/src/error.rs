@@ -11,6 +11,7 @@ pub enum Error {
     TokioRuntimeCreation(std::io::Error),
     JsonSerialization(serde_json::Error),
     JsonDeserialization(serde_json::Error),
+    InternalLogic(String),
 }
 
 impl Error {
@@ -30,6 +31,7 @@ impl Error {
             Error::TokioRuntimeCreation(_) => 1003,
             Error::JsonSerialization(_) => 1004,
             Error::JsonDeserialization(_) => 2005,
+            Error::InternalLogic(_) => 1006,
         }
     }
 }
@@ -43,6 +45,7 @@ impl fmt::Display for Error {
             Error::TokioRuntimeCreation(_) => write!(f, "не удалось создать рантайм Tokio"),
             Error::JsonSerialization(_) => write!(f, "не удалось сериализовать ответ БД в JSON"),
             Error::JsonDeserialization(_) => write!(f, "не валидные аргументы переданы в dll"),
+            Error::InternalLogic(_) => write!(f, "логическая ошибка в коде dll"),
         }
     }
 }
@@ -69,6 +72,7 @@ impl Serialize for Error {
                 Error::TokioRuntimeCreation(err) => err.to_string(),
                 Error::JsonSerialization(err) => err.to_string(),
                 Error::JsonDeserialization(err) => err.to_string(),
+                Error::InternalLogic(err) => err.to_string(),
             }
         })?;
 

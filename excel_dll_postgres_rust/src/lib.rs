@@ -22,7 +22,7 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
 
             let tokio_rows_vec = db::get_database_response(&excel_requests, my_db_params)?; // ответ БД
 
-            let responses_vec = api::map_rows_to_api_responses_vec(excel_requests, tokio_rows_vec);
+            let responses_vec = api::map_rows_to_api_responses_vec(excel_requests, tokio_rows_vec)?;
 
             Ok(responses_vec)
         }
