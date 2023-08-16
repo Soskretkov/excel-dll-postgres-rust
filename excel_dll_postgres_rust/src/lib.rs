@@ -39,7 +39,6 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
     // let forced_error = Error::JsonSerialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::Other, "forced serialization error")));
     // let sent_json_txt = serde_json::to_string(&Result::<Vec<ApiResponse>, Error>::Err(forced_error))
     //     .unwrap_or_else(|err| serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(Error::JsonSerialization(err))).to_string());
-    // let sent_json_txt =  serde_json::json!({"Err":{"code":1004,"descr":"не удалось сериализовать ответ БД в JSON","tech_descr":""}}).to_string(); //тест 2
 
     // конвертация в формат, ожидаемый на стороне vba
     let string_for_vba = StringForVba::from_string(sent_json_txt);

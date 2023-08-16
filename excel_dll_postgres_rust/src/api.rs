@@ -58,7 +58,7 @@ pub fn map_rows_to_api_responses_vec(
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
         let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_tbl {
             true => {
-                let vec = json_utils::pack_tbl_into_obj_in_arr(rows);
+                let vec = json_utils::pack_tbl_into_obj_in_arr(rows)?;
                 Ok(ResponseType::ObjInArr(vec))
             }
             false => {

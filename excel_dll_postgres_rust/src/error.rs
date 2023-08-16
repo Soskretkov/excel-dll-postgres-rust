@@ -9,6 +9,7 @@ pub enum Error {
     DBConnection(tokio_postgres::Error),
     SqlExecution(tokio_postgres::Error),
     TokioRuntimeCreation(std::io::Error),
+    DataRetrieval(tokio_postgres::Error),
     JsonSerialization(serde_json::Error),
     JsonDeserialization(serde_json::Error),
     InternalLogic(String),
@@ -18,7 +19,7 @@ impl Error {
     // 1xxx - Внутренние ошибки: проблемы, слабо связанные с внешним миром.
     // 2xxx - Внешние ошибки: ошибки, возникшие из-за некорректных данных на входе или действий пользователя.
     // 3xxx - Ошибки состояния базы данных: проблемы при взаимодействии с базой данных.
-    // x0xx - Пользователя не нужно грузить деталями.
+    // x0xx - Пользователя не нужно грузить деталями предоставив абстрактное описание.
     // x1xx - Пользователю стоит показать общее описание.
     // x2xx - Пользователю стоит показать общее описание и технические детали
     // xxNN - Уникальный код ошибки.
@@ -28,10 +29,11 @@ impl Error {
             Error::InvalidUtf16OnInput(_) => 2000,
             Error::DBConnection(_) => 3101,
             Error::SqlExecution(_) => 2202,
-            Error::TokioRuntimeCreation(_) => 1003,
-            Error::JsonSerialization(_) => 1004,
-            Error::JsonDeserialization(_) => 2005,
-            Error::InternalLogic(_) => 1006,
+            Error::DataRetrieval(_) => 1003,
+            Error::TokioRuntimeCreation(_) => 1005,
+            Error::JsonSerialization(_) => 1006,
+            Error::JsonDeserialization(_) => 2007,
+            Error::InternalLogic(_) => 1008,
         }
     }
 }
@@ -40,8 +42,11 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::InvalidUtf16OnInput(_) => write!(f, "не удалось конвертировать запрос в UTF-16"),
-            Error::DBConnection(_) => write!(f, "не удалось подключение к базе данных"),
+            Error::DBConnection(_) => write!(f, "база данных недоступна"),
             Error::SqlExecution(_) => write!(f, "не удалось выполнить SQL-запрос"),
+            Error::DataRetrieval(_) => {
+                write!(f, "не удалось конвертировать тип базы данных в rust-тип")
+            }
             Error::TokioRuntimeCreation(_) => write!(f, "не удалось создать рантайм Tokio"),
             Error::JsonSerialization(_) => write!(f, "не удалось сериализовать ответ БД в JSON"),
             Error::JsonDeserialization(_) => write!(f, "не валидные аргументы переданы в dll"),
@@ -69,6 +74,7 @@ impl Serialize for Error {
                 Error::InvalidUtf16OnInput(err) => err.to_string(),
                 Error::DBConnection(err) => err.to_string(),
                 Error::SqlExecution(err) => err.to_string(),
+                Error::DataRetrieval(err) => err.to_string(),
                 Error::TokioRuntimeCreation(err) => err.to_string(),
                 Error::JsonSerialization(err) => err.to_string(),
                 Error::JsonDeserialization(err) => err.to_string(),

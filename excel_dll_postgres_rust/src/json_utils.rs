@@ -38,20 +38,20 @@ impl OrderedJson {
     }
 }
 
-pub fn pack_tbl_into_obj_in_arr(rows: Vec<Row>) -> Vec<OrderedJson> {
+pub fn pack_tbl_into_obj_in_arr(rows: Vec<Row>) -> Result<Vec<OrderedJson>, Error> {
     rows.into_iter()
         .map(|row| {
             let mut hmap = OrderedJson::new();
 
             for column in row.columns().iter() {
                 let k = column.name().to_string();
-                let v = convert_to_serde_json_type(&row, column);
+                let v = convert_to_serde_json_type(&row, column)?;
 
                 hmap.insert(k, v);
             }
-            hmap
+            Ok(hmap) // Обратите внимание, что здесь мы возвращаем Ok(hmap)
         })
-        .collect()
+        .collect() // но collect() автоматически соберет значения в Result<Vec<OrderedJson>, Error>
 }
 
 pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value>, Error> {
@@ -63,7 +63,7 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
                 .entry(column.name().to_string())
                 .or_insert_with(|| Value::Array(Vec::with_capacity(rows.len())));
 
-            let v = convert_to_serde_json_type(row, column);
+            let v = convert_to_serde_json_type(row, column)?;
 
             match value {
                 Value::Array(arr) => {
@@ -81,57 +81,74 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
     Ok(hmap)
 }
 
-pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Value {
+pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Result<Value, Error> {
     //потенциально добавить: pg_lsn
-    match *column.type_() {
-        Type::BOOL => match row.try_get::<_, bool>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+    Ok(match *column.type_() {
+        Type::BOOL => match row.try_get::<_, Option<bool>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::CHAR => match row.try_get::<_, i8>(column.name()) {
-            Ok(v) => {
-                let ch = char::from_u32(v as u32).unwrap_or('\0');
+        Type::CHAR => match row.try_get::<_, Option<i8>>(column.name()) {
+            Ok(Some(v)) => {
+                let ch = char::from_u32(v as u32).ok_or_else(|| {
+                    Error::InternalLogic(
+                        "невозможное условие при конвертировании типа u32 в char".to_string(),
+                    )
+                })?;
                 json!(ch.to_string())
             }
-            Err(_) => Value::Null,
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::INT2 => match row.try_get::<_, i16>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::INT2 => match row.try_get::<_, Option<i16>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::INT4 => match row.try_get::<_, i32>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::INT4 => match row.try_get::<_, Option<i32>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::OID => match row.try_get::<_, u32>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::OID => match row.try_get::<_, Option<u32>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::INT8 => match row.try_get::<_, i64>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::INT8 => match row.try_get::<_, Option<i64>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::FLOAT4 => match row.try_get::<_, f32>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::FLOAT4 => match row.try_get::<_, Option<f32>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::FLOAT8 => match row.try_get::<_, f64>(column.name()) {
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+        Type::FLOAT8 => match row.try_get::<_, Option<f64>>(column.name()) {
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        Type::DATE => match row.try_get::<_, NaiveDate>(column.name()) {
-            Ok(v) => {
+        Type::DATE => match row.try_get::<_, Option<NaiveDate>>(column.name()) {
+            Ok(Some(v)) => {
                 // let base_date = NaiveDate::from_ymd_opt(1899, 12, 30).unwrap();
                 // let duration = v.signed_duration_since(base_date);
                 // json!(duration.num_days())
                 json!(v.format("%Y-%m-%d").to_string())
             }
-            Err(_) => Value::Null,
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
-        _ => match row.try_get::<_, String>(column.name()) {
+        _ => match row.try_get::<_, Option<String>>(column.name()) {
             //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(v) => json!(v),
             Err(_) => Value::Null,
         },
-    }
+    })
 }
+
+
+
+
