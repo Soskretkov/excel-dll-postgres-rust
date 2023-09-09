@@ -142,13 +142,9 @@ pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Result<Value, E
             Err(err) => return Err(Error::DataRetrieval(err)),
         },
         _ => match row.try_get::<_, Option<String>>(column.name()) {
-            //VARCHAR, CHAR(n), TEXT, CITEXT, NAME
+            // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(v) => json!(v),
             Err(_) => Value::Null,
         },
     })
 }
-
-
-
-
