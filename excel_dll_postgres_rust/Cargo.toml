@@ -14,3 +14,8 @@ postgres-types = { version = "0.2", features = ["with-chrono-0_4"] }
 
 [lib]
 crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+lto = true
+debug = false

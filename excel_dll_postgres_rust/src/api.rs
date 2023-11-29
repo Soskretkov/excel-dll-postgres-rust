@@ -13,9 +13,9 @@ use tokio_postgres::Row;
 
 #[derive(Deserialize)]
 pub struct ApiRequest {
-    pub sql_query: String,
     pub requesters_id: Option<String>, //имя листа или таблицы
-    pub is_obj_in_arr_tbl: bool,
+    pub sql_query: String,
+    pub is_obj_in_arr_fmt: bool,
 }
 
 impl FromStr for ApiRequest {
@@ -45,8 +45,8 @@ impl Serialize for ResponseType {
 
 #[derive(Serialize)]
 pub struct ApiResponse {
-    pub data: Result<ResponseType, Error>,
     pub requesters_id: Option<String>,
+    pub data: Result<ResponseType, Error>,
 }
 
 pub fn map_rows_to_api_responses_vec(
@@ -56,7 +56,7 @@ pub fn map_rows_to_api_responses_vec(
     let mut res = Vec::with_capacity(excel_requests.len());
 
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
-        let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_tbl {
+        let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_fmt {
             true => {
                 let pack_tbl = json_utils::pack_tbl_into_obj_in_arr(rows);
                 // любые ошибки пакуем в ApiResponse, не прерывая обработку остальных запросов

@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use tokio_postgres::Row;
 use tokio_postgres::{types::Type, Column};
 
-// сиротское правило не дает реализовать трейт Serialize непосредственно на IndexMap
+// тип-обертка, сиротское правило не дает реализовать трейт Serialize для IndexMap
 // IndexMap выбран потому что сохраняет порядок в которой вносятся ключи
 pub struct OrderedJson(pub IndexMap<String, Value>);
 
