@@ -1,8 +1,6 @@
 /.vscode
 /target
-Cargo.lock
 ~$test.xlsm
-/excel_dll_postgres_rust/Cargo.lock
-/crypt/Cargo.lock
-/crypt/encrypted.txt
-/crypt/encryption_key.txt
+/encrypted.txt
+/encryption_key.txt
+/unencrypted.txt

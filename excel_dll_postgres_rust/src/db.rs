@@ -1,22 +1,22 @@
-use std::collections::HashMap;
-use tokio::runtime;
-use tokio_postgres::{NoTls, Row};
 use super::api::ApiRequest;
 use super::error::Error;
-
-
+use serde::Deserialize;
+use std::env;
+use std::fs;
+use tokio::runtime;
+use tokio_postgres::{NoTls, Row};
 
 pub fn get_database_response(
     excel_requests: &[ApiRequest],
-    db_access_parameters: HashMap<String, String>,
+    db_conect_params: ConectParams,
 ) -> Result<Vec<Result<Vec<Row>, Error>>, Error> {
     // строка параметров для соединения с БД
     let parameter_string = format!(
         "host={} dbname={} user={} password={}",
-        db_access_parameters.get("host").unwrap(),
-        db_access_parameters.get("dbname").unwrap(),
-        db_access_parameters.get("user").unwrap(),
-        db_access_parameters.get("password").unwrap()
+        db_conect_params.host,
+        db_conect_params.db_name,
+        db_conect_params.user,
+        db_conect_params.password
     );
 
     // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
@@ -45,12 +45,33 @@ pub fn get_database_response(
     Ok(res)
 }
 
-pub fn get_db_params() -> HashMap<String, String> {
+#[derive(Deserialize)]
+pub struct ConectParams {
+    pub host: String,
+    pub db_name: String,
+    pub user: String,
+    pub password: String,
+}
+
+pub fn get_connection_params() -> ConectParams {
     // это только для теста, не храните реальные данные в dll!
-    let mut db_parameters = HashMap::<String, String>::new();
-    db_parameters.insert(String::from("host"), String::from("localhost"));
-    db_parameters.insert(String::from("dbname"), String::from("el_dabaa"));
-    db_parameters.insert(String::from("user"), String::from("postgres"));
-    db_parameters.insert(String::from("password"), String::from("''"));
-    db_parameters
+    ConectParams {
+        host: "localhost".to_string(),
+        db_name: "el_dabaa".to_string(),
+        user: "sdo_bot_readonly".to_string(),
+        password: "Aa456456".to_string(),
+    }
+}
+
+pub fn get_encrypt_connection_params() -> ConectParams {
+    // Загрузка содержимого файла во время выполнения (предполагается что файл размещен где .dll)
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    let encrypted_file_path = current_dir.join("encrypted.txt");
+    let encrypted_file_content =
+        fs::read(&encrypted_file_path).expect("Failed to read encrypted file");
+
+    // Хардкодим ключ внутрь .dll
+    let encryption_key = include_bytes!("../../encryption_key.txt");
+
+    unimplemented!()
 }
