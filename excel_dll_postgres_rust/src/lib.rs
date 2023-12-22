@@ -18,7 +18,7 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
             let excel_requests: Vec<ApiRequest> =
                 serde_json::from_str(&string_from_vba).map_err(Error::JsonDeserialization)?;
 
-            let my_db_params = db::get_connection_params(); // параметры для подключения к БД
+            let my_db_params = db::get_db_auth_data(); // параметры для подключения к БД
 
             let tokio_rows_vec = db::get_database_response(&excel_requests, my_db_params)?; // ответ БД
 

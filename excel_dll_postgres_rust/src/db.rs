@@ -6,9 +6,18 @@ use std::fs;
 use tokio::runtime;
 use tokio_postgres::{NoTls, Row};
 
+#[derive(Deserialize)]
+pub struct Login {
+    pub host: String,
+    #[serde(rename = "dbName")]
+    pub db_name: String,
+    pub user: String,
+    pub password: String,
+}
+
 pub fn get_database_response(
     excel_requests: &[ApiRequest],
-    db_conect_params: ConectParams,
+    db_conect_params: Login,
 ) -> Result<Vec<Result<Vec<Row>, Error>>, Error> {
     // строка параметров для соединения с БД
     let parameter_string = format!(
@@ -45,33 +54,22 @@ pub fn get_database_response(
     Ok(res)
 }
 
-#[derive(Deserialize)]
-pub struct ConectParams {
-    pub host: String,
-    pub db_name: String,
-    pub user: String,
-    pub password: String,
+pub fn get_db_auth_data() -> Login {
+    let params_file_content = include_str!("../../unencrypted.txt");
+    let params:Login = serde_json::from_str(params_file_content).unwrap();
+
+    params
 }
 
-pub fn get_connection_params() -> ConectParams {
-    // это только для теста, не храните реальные данные в dll!
-    ConectParams {
-        host: "localhost".to_string(),
-        db_name: "el_dabaa".to_string(),
-        user: "sdo_bot_readonly".to_string(),
-        password: "Aa456456".to_string(),
-    }
-}
-
-pub fn get_encrypt_connection_params() -> ConectParams {
+fn get_encrypt_db_auth_data() -> Login {
     // Загрузка содержимого файла во время выполнения (предполагается что файл размещен где .dll)
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let encrypted_file_path = current_dir.join("encrypted.txt");
     let encrypted_file_content =
         fs::read(&encrypted_file_path).expect("Failed to read encrypted file");
 
-    // Хардкодим ключ внутрь .dll
-    let encryption_key = include_bytes!("../../encryption_key.txt");
+    // Хардкодим ключ внутрь .dll. Файл ожидается в корне проекта
+    // let encryption_key = include_bytes!("../../encryption_key.txt");
 
     unimplemented!()
 }

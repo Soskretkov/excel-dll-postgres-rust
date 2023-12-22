@@ -13,8 +13,11 @@ use tokio_postgres::Row;
 
 #[derive(Deserialize)]
 pub struct ApiRequest {
+    #[serde(rename = "requesterId")]
     pub requesters_id: Option<String>, //имя листа или таблицы
+    #[serde(rename = "sqlQuery")]
     pub sql_query: String,
+    #[serde(rename = "isObjInArrFmt")]
     pub is_obj_in_arr_fmt: bool,
 }
 
@@ -45,6 +48,7 @@ impl Serialize for ResponseType {
 
 #[derive(Serialize)]
 pub struct ApiResponse {
+    #[serde(rename = "requesterId")]
     pub requesters_id: Option<String>,
     pub data: Result<ResponseType, Error>,
 }
