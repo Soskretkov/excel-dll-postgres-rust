@@ -45,7 +45,7 @@ pub fn pack_tbl_into_obj_in_arr(rows: Vec<Row>) -> Result<Vec<OrderedJson>, Erro
 
             for column in row.columns().iter() {
                 let k = column.name().to_string();
-                let v = convert_to_serde_json_type(&row, column)?;
+                let v = convert_type(&row, column)?;
 
                 hmap.insert(k, v);
             }
@@ -63,7 +63,7 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
                 .entry(column.name().to_string())
                 .or_insert_with(|| Value::Array(Vec::with_capacity(rows.len())));
 
-            let v = convert_to_serde_json_type(row, column)?;
+            let v = convert_type(row, column)?;
 
             match value {
                 Value::Array(arr) => {
@@ -81,7 +81,7 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
     Ok(hmap)
 }
 
-pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Result<Value, Error> {
+pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
     //потенциально добавить: pg_lsn
     Ok(match *column.type_() {
         Type::BOOL => match row.try_get::<_, Option<bool>>(column.name()) {
@@ -145,11 +145,38 @@ pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Result<Value, E
             match row.try_get::<_, Option<serde_json::Value>>(column.name()) {
                 Ok(Some(v)) => {
                     // Сериализуем значение JSON обратно в строку
-                    let serialized_jsonb = serde_json::to_string(&v).map_err(|err| {
-                        Error::InternalLogic(format!("Ошибка при сериализации JSONB: {}", err))
-                    })?;
+                    let serialized_jsonb =
+                        serde_json::to_string(&v).map_err(|err| Error::JsonSerialization(err))?;
                     // Упаковываем сериализованную строку обратно в Value как строку
                     json!(serialized_jsonb)
+                }
+                Ok(None) => Value::Null,
+                Err(err) => return Err(Error::DataRetrieval(err)),
+            }
+        }
+        Type::TEXT_ARRAY | Type::VARCHAR_ARRAY | Type::BPCHAR_ARRAY | Type::NAME_ARRAY => {
+            match row.try_get::<_, Option<Vec<Option<String>>>>(column.name()) {
+                Ok(Some(vec)) => {
+                    // Преобразуем Vec<Option<String>> в строку в формате {value1, value2, ...}
+                    let array_str = vec
+                        .iter()
+                        .map(|v| {
+                            match v {
+                                Some(value) => {
+                                    if value.is_empty() {
+                                        format!("\"{}\"", value)
+                                    } else {
+                                        value.to_string()
+                                    }
+                                }
+                                None => "NULL".to_string(), // Используем пустую строку для представления NULL значений
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                        .join(",");
+
+                    let formatted_array_str = format!("{{{}}}", array_str);
+                    Value::String(formatted_array_str)
                 }
                 Ok(None) => Value::Null,
                 Err(err) => return Err(Error::DataRetrieval(err)),
