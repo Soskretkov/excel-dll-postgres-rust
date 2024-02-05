@@ -61,11 +61,11 @@ pub fn get_db_auth_data() -> Login {
     params
 }
 
-fn get_encrypt_db_auth_data() -> Login {
+fn _get_encrypt_db_auth_data() -> Login {
     // Загрузка содержимого файла во время выполнения (предполагается что файл размещен где .dll)
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let encrypted_file_path = current_dir.join("encrypted.txt");
-    let encrypted_file_content =
+    let _encrypted_file_content =
         fs::read(&encrypted_file_path).expect("Failed to read encrypted file");
 
     // Хардкодим ключ внутрь .dll. Файл ожидается в корне проекта

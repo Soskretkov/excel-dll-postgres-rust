@@ -141,6 +141,20 @@ pub fn convert_to_serde_json_type(row: &Row, column: &Column) -> Result<Value, E
             Ok(None) => Value::Null,
             Err(err) => return Err(Error::DataRetrieval(err)),
         },
+        Type::JSON | Type::JSONB => {
+            match row.try_get::<_, Option<serde_json::Value>>(column.name()) {
+                Ok(Some(v)) => {
+                    // Сериализуем значение JSON обратно в строку
+                    let serialized_jsonb = serde_json::to_string(&v).map_err(|err| {
+                        Error::InternalLogic(format!("Ошибка при сериализации JSONB: {}", err))
+                    })?;
+                    // Упаковываем сериализованную строку обратно в Value как строку
+                    json!(serialized_jsonb)
+                }
+                Ok(None) => Value::Null,
+                Err(err) => return Err(Error::DataRetrieval(err)),
+            }
+        }
         _ => match row.try_get::<_, Option<String>>(column.name()) {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(v) => json!(v),
