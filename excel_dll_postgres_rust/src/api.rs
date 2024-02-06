@@ -27,19 +27,19 @@ impl FromStr for ApiRequest {
     }
 }
 
-pub enum ResponseType {
+pub enum SqlResponseTable {
     ArrInObj(OrderedJson),
     ObjInArr(Vec<OrderedJson>),
 }
 
-impl Serialize for ResponseType {
+impl Serialize for SqlResponseTable {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         match self {
-            ResponseType::ArrInObj(value) => value.serialize(serializer),
-            ResponseType::ObjInArr(value) => value.serialize(serializer),
+            SqlResponseTable::ArrInObj(value) => value.serialize(serializer),
+            SqlResponseTable::ObjInArr(value) => value.serialize(serializer),
         }
     }
 }
@@ -47,19 +47,18 @@ impl Serialize for ResponseType {
 pub fn map_rows_to_api_responses_vec(
     excel_requests: Vec<ApiRequest>,
     data_vec: Vec<Result<Vec<Row>, Error>>,
-) -> Result<Vec<Result<ResponseType, Error>>, Error> {
+) -> Result<Vec<Result<SqlResponseTable, Error>>, Error> {
     let mut res = Vec::with_capacity(excel_requests.len());
 
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
         let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_fmt {
             true => {
                 let pack_tbl = json_utils::pack_tbl_into_obj_in_arr(rows);
-                // пакуем любые ошибки не отменяя обработку остальных запросов
-                pack_tbl.and_then(|vec| Ok(ResponseType::ObjInArr(vec)))
+                pack_tbl.map(|vec| SqlResponseTable::ObjInArr(vec))
             }
             false => {
                 let pack_tbl = json_utils::pack_tbl_into_arr_in_obj(rows);
-                pack_tbl.and_then(|index_map| Ok(ResponseType::ArrInObj(OrderedJson(index_map))))
+                pack_tbl.map(|index_map| SqlResponseTable::ArrInObj(OrderedJson(index_map)))
             }
         });
 

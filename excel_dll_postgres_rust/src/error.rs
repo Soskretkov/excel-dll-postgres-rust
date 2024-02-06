@@ -48,7 +48,9 @@ impl fmt::Display for Error {
                 write!(f, "Не удалось конвертировать тип базы данных в rust-тип")
             }
             Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
-            Error::JsonSerialization(_) => write!(f, "Не удалось сериализовать ответ БД в JSON-формат"),
+            Error::JsonSerialization(_) => {
+                write!(f, "Не удалось сериализовать ответ БД в JSON-формат")
+            }
             Error::JsonDeserialization(_) => write!(f, "Не валидные аргументы переданы в dll"),
             Error::InternalLogic(_) => write!(f, "Логическая ошибка в dll"),
         }

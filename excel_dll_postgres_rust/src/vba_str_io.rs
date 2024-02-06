@@ -8,7 +8,6 @@ pub struct StringForVba {
     is_valid: bool,
     length_in_bytes: i32,
     _data: Vec<u16>, // это поле не будет читаться VBA и оно тут для выравнивания времени жизни с полем "ptr" для того чтобы vba читал действительный "ptr"
-
 }
 
 impl StringForVba {

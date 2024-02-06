@@ -56,7 +56,7 @@ pub fn get_database_response(
 
 pub fn get_db_auth_data() -> Login {
     let params_file_content = include_str!("../../unencrypted.txt");
-    let params:Login = serde_json::from_str(params_file_content).unwrap();
+    let params: Login = serde_json::from_str(params_file_content).unwrap();
 
     params
 }
