@@ -41,16 +41,16 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16."),
-            Error::DBConnection(_) => write!(f, "База данных недоступна."),
-            Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос."),
+            Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
+            Error::DBConnection(_) => write!(f, "База данных недоступна"),
+            Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
             Error::DataRetrieval(_) => {
-                write!(f, "Не удалось конвертировать тип базы данных в rust-тип.")
+                write!(f, "Не удалось конвертировать тип базы данных в rust-тип")
             }
-            Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio."),
-            Error::JsonSerialization(_) => write!(f, "Не удалось сериализовать ответ БД в JSON-формат."),
-            Error::JsonDeserialization(_) => write!(f, "Не валидные аргументы переданы в dll."),
-            Error::InternalLogic(_) => write!(f, "Логическая ошибка в dll."),
+            Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
+            Error::JsonSerialization(_) => write!(f, "Не удалось сериализовать ответ БД в JSON-формат"),
+            Error::JsonDeserialization(_) => write!(f, "Не валидные аргументы переданы в dll"),
+            Error::InternalLogic(_) => write!(f, "Логическая ошибка в dll"),
         }
     }
 }

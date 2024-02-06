@@ -13,8 +13,6 @@ use tokio_postgres::Row;
 
 #[derive(Deserialize)]
 pub struct ApiRequest {
-    #[serde(rename = "requesterId")]
-    pub requesters_id: Option<String>, //имя листа или таблицы
     #[serde(rename = "sqlQuery")]
     pub sql_query: String,
     #[serde(rename = "isObjInArrFmt")]
@@ -46,24 +44,17 @@ impl Serialize for ResponseType {
     }
 }
 
-#[derive(Serialize)]
-pub struct ApiResponse {
-    #[serde(rename = "requesterId")]
-    pub requesters_id: Option<String>,
-    pub data: Result<ResponseType, Error>,
-}
-
 pub fn map_rows_to_api_responses_vec(
     excel_requests: Vec<ApiRequest>,
     data_vec: Vec<Result<Vec<Row>, Error>>,
-) -> Result<Vec<ApiResponse>, Error> {
+) -> Result<Vec<Result<ResponseType, Error>>, Error> {
     let mut res = Vec::with_capacity(excel_requests.len());
 
     for (request, rows_vec) in excel_requests.into_iter().zip(data_vec) {
         let data = rows_vec.and_then(|rows| match request.is_obj_in_arr_fmt {
             true => {
                 let pack_tbl = json_utils::pack_tbl_into_obj_in_arr(rows);
-                // любые ошибки пакуем в ApiResponse, не прерывая обработку остальных запросов
+                // пакуем любые ошибки не отменяя обработку остальных запросов
                 pack_tbl.and_then(|vec| Ok(ResponseType::ObjInArr(vec)))
             }
             false => {
@@ -72,12 +63,7 @@ pub fn map_rows_to_api_responses_vec(
             }
         });
 
-        let excel_response = ApiResponse {
-            data,
-            requesters_id: request.requesters_id,
-        };
-
-        res.push(excel_response);
+        res.push(data);
     }
     Ok(res)
 }

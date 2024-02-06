@@ -4,8 +4,8 @@ mod json_utils;
 mod db;
 mod error;
 use vba_str_io::StringForVba;
-use error::Error;
-use api::{ApiRequest, ApiResponse};
+use error::Error as Error;
+use api::{ApiRequest, ResponseType};
 
 //для вызова из кода на других языках, используется соглашение о вызове stdcall (обычно используемое в Windows для вызовов функций API)
 #[no_mangle]
@@ -32,13 +32,13 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
     let sent_json_txt = serde_json::to_string(&wraped_responses_vec)
         .map_err(Error::JsonSerialization)
         .unwrap_or_else(|err| {
-            serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(err)).to_string()
+            serde_json::json!(Err::<Vec<Result<ResponseType, Error>>, Error>(err)).to_string()
         });
 
-    //тест
+    // тест
     // let forced_error = Error::JsonSerialization(serde_json::Error::io(std::io::Error::new(std::io::ErrorKind::Other, "forced serialization error")));
-    // let sent_json_txt = serde_json::to_string(&Result::<Vec<ApiResponse>, Error>::Err(forced_error))
-    //     .unwrap_or_else(|err| serde_json::json!(Err::<Vec<ApiResponse>, error::Error>(Error::JsonSerialization(err))).to_string());
+    // let sent_json_txt = serde_json::to_string(&Result::<Vec<Result<ResponseType, Error>>, Error>::Err(forced_error))
+    //     .unwrap_or_else(|err| serde_json::json!(Err::<Vec<Result<ResponseType, Error>>, Error>(Error::JsonSerialization(err))).to_string());
 
     // конвертация в формат, ожидаемый на стороне vba
     let string_for_vba = StringForVba::from_string(sent_json_txt);
