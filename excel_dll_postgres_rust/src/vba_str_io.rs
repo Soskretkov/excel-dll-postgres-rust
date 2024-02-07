@@ -28,10 +28,6 @@ impl StringForVba {
         }
     }
 
-    pub fn validity_update(&mut self, is_valid: bool) {
-        self.is_valid = is_valid;
-    }
-
     pub fn into_raw(self) -> *mut StringForVba {
         Box::into_raw(Box::new(self))
     }
