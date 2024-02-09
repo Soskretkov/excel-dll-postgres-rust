@@ -184,8 +184,9 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
         }
         _ => match row.try_get::<_, Option<String>>(column.name()) {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
-            Ok(v) => json!(v),
-            Err(_) => Value::Null,
+            Ok(Some(v)) => json!(v),
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
         },
     })
 }
