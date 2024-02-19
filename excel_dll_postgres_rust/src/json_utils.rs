@@ -81,6 +81,13 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
     Ok(hmap)
 }
 
+
+// https://docs.rs/tokio-postgres/latest/tokio_postgres/types/trait.FromSql.html
+// https://shanegibbs.github.io/pqbus/postgres/types/trait.ToSql.html
+
+// https://docs.rs/sqlx/latest/sqlx/postgres/types/index.html
+
+// в планах: поддержка типа numeric
 pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
     //потенциально добавить: pg_lsn
     Ok(match *column.type_() {
