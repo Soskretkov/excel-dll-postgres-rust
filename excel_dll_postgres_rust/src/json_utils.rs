@@ -92,7 +92,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -109,7 +109,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             }
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -119,7 +119,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -129,7 +129,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -139,7 +139,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -149,7 +149,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -159,7 +159,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -169,7 +169,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -184,7 +184,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             }
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -201,7 +201,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 }
                 Ok(None) => Value::Null,
                 Err(err) => {
-                    return Err(Error::DataRetrieval {
+                    return Err(Error::DbTypeConversion {
                         err,
                         column_type: column.type_().clone(),
                     });
@@ -234,7 +234,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 }
                 Ok(None) => Value::Null,
                 Err(err) => {
-                    return Err(Error::DataRetrieval {
+                    return Err(Error::DbTypeConversion {
                         err,
                         column_type: column.type_().clone(),
                     });
@@ -249,7 +249,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             }
             Ok(None) => Value::Null,
             Err(err) => {
-                return Err(Error::DataRetrieval {
+                return Err(Error::DbTypeConversion {
                     err,
                     column_type: column.type_().clone(),
                 });
@@ -259,11 +259,8 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => {
-                return Err(Error::DataRetrieval {
-                    err,
-                    column_type: column.type_().clone(),
-                });
+            Err(_) => {
+                return Err(Error::DbTypeSupport(column.type_().clone()));
             }
         },
     })

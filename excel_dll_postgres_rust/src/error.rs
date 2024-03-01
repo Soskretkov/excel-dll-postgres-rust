@@ -9,10 +9,11 @@ pub enum Error {
     DBConnection(tokio_postgres::Error),
     SqlExecution(tokio_postgres::Error),
     TokioRuntimeCreation(std::io::Error),
-    DataRetrieval {
+    DbTypeConversion {
         err: tokio_postgres::Error,
         column_type: tokio_postgres::types::Type,
     },
+    DbTypeSupport(tokio_postgres::types::Type),
     JsonSerialization(serde_json::Error),
     JsonDeserialization(serde_json::Error),
     InternalLogic(String),
@@ -21,7 +22,7 @@ pub enum Error {
 impl Error {
     // 1xxx - Внутренние ошибки: проблемы, слабо связанные с внешним миром.
     // 2xxx - Внешние ошибки: ошибки, возникшие из-за некорректных данных на входе или действий пользователя.
-    // 3xxx - Ошибки состояния базы данных: проблемы при взаимодействии с базой данных.
+    // 3xxx - Ошибки при взаимодействии с базой данных.
     // x0xx - Пользователя не нужно грузить деталями предоставив абстрактное описание.
     // x1xx - Пользователю стоит показать общее описание.
     // x2xx - Пользователю стоит показать общее описание и технические детали
@@ -32,7 +33,8 @@ impl Error {
             Error::InvalidUtf16OnInput(_) => 2000,
             Error::DBConnection(_) => 3101,
             Error::SqlExecution(_) => 2202,
-            Error::DataRetrieval { .. } => 1003,
+            Error::DbTypeConversion { .. } => 1003,
+            Error::DbTypeSupport(_) => 3104,
             Error::TokioRuntimeCreation(_) => 1005,
             Error::JsonSerialization(_) => 1006,
             Error::JsonDeserialization(_) => 2007,
@@ -47,13 +49,18 @@ impl fmt::Display for Error {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
             Error::DBConnection(_) => write!(f, "Внешняя база данных недоступна"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
-            Error::DataRetrieval { column_type, .. } => {
+            Error::DbTypeConversion { column_type, .. } => {
                 write!(
                     f,
                     "Не удалось конвертировать тип базы данных '{}' в rust-тип",
                     column_type.name()
                 )
             }
+            Error::DbTypeSupport(column_type) => write!(
+                f,
+                "Тип столбца базы данных '{}' не поддерживается",
+                column_type.name()
+            ),
             Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
             Error::JsonSerialization(_) => {
                 write!(f, "Не удалось сериализовать ответ БД в JSON-формат")
@@ -83,7 +90,8 @@ impl Serialize for Error {
                 Error::InvalidUtf16OnInput(err) => err.to_string(),
                 Error::DBConnection(err) => err.to_string(),
                 Error::SqlExecution(err) => err.to_string(),
-                Error::DataRetrieval { err, .. } => err.to_string(),
+                Error::DbTypeConversion { err, .. } => err.to_string(),
+                Error::DbTypeSupport(err) => err.to_string(),
                 Error::TokioRuntimeCreation(err) => err.to_string(),
                 Error::JsonSerialization(err) => err.to_string(),
                 Error::JsonDeserialization(err) => err.to_string(),
