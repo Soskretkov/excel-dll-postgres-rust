@@ -28,17 +28,17 @@ impl Error {
     // xxx1 - Пользователю стоит показать общее описание.
     // xxx2 - Пользователю стоит показать общее описание и технические детали
 
-    fn code(&self) -> u32 {
+    fn code(&self) -> &'static str {
         match self {
-            Error::InvalidUtf16OnInput(_) => 0020,
-            Error::DBConnection(_) => 0131,
-            Error::SqlExecution(_) => 0222,
-            Error::DbTypeConversion { .. } => 0310,
-            Error::DbTypeSupport(_) => 0431,
-            Error::TokioRuntimeCreation(_) => 0510,
-            Error::JsonSerialization(_) => 0610,
-            Error::JsonDeserialization(_) => 0720,
-            Error::InternalLogic(_) => 0810,
+            Error::InvalidUtf16OnInput(_) => "0020",
+            Error::DBConnection(_) => "0131",
+            Error::SqlExecution(_) => "0222",
+            Error::DbTypeConversion { .. } => "0310",
+            Error::DbTypeSupport(_) => "0431",
+            Error::TokioRuntimeCreation(_) => "0510",
+            Error::JsonSerialization(_) => "0610",
+            Error::JsonDeserialization(_) => "0720",
+            Error::InternalLogic(_) => "0810",
         }
     }
 }
