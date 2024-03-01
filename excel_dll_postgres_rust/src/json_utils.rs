@@ -6,6 +6,7 @@
 use super::Error;
 use chrono::NaiveDate;
 use indexmap::IndexMap;
+use rust_decimal::Decimal;
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -81,15 +82,11 @@ pub fn pack_tbl_into_arr_in_obj(rows: Vec<Row>) -> Result<IndexMap<String, Value
     Ok(hmap)
 }
 
-
 // https://docs.rs/tokio-postgres/latest/tokio_postgres/types/trait.FromSql.html
 // https://shanegibbs.github.io/pqbus/postgres/types/trait.ToSql.html
 
 // https://docs.rs/sqlx/latest/sqlx/postgres/types/index.html
-
-// в планах: поддержка типа numeric
 pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
-    //потенциально добавить: pg_lsn
     Ok(match *column.type_() {
         Type::BOOL => match row.try_get::<_, Option<bool>>(column.name()) {
             Ok(Some(v)) => json!(v),
@@ -189,6 +186,20 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 Err(err) => return Err(Error::DataRetrieval(err)),
             }
         }
+        Type::NUMERIC => match row.try_get::<_, Option<Decimal>>(column.name()) {
+            Ok(Some(v)) => {
+                // Можно конвертировать Decimal в f64 для JSON, но это не универсально и есь опасность с потерей точности!
+                // Если точность критична, лучше использовать строковое представление.
+                // Пример конвертации в f64:
+                // let float_val = v.to_f64().ok_or_else(|| Error::InternalLogic("Ошибка конвертации Decimal в f64".to_string()))?;
+                // json!(float_val)
+
+                // используем строковое представление для максимальной точности:
+                json!(v.to_string())
+            }
+            Ok(None) => Value::Null,
+            Err(err) => return Err(Error::DataRetrieval(err)),
+        },
         _ => match row.try_get::<_, Option<String>>(column.name()) {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(Some(v)) => json!(v),

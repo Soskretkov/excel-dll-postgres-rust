@@ -42,7 +42,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
-            Error::DBConnection(_) => write!(f, "База данных недоступна"),
+            Error::DBConnection(_) => write!(f, "Внешняя база данных недоступна"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
             Error::DataRetrieval(_) => {
                 write!(f, "Не удалось конвертировать тип базы данных в rust-тип")
