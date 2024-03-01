@@ -91,7 +91,7 @@ impl Serialize for Error {
                 Error::DBConnection(err) => err.to_string(),
                 Error::SqlExecution(err) => err.to_string(),
                 Error::DbTypeConversion { err, .. } => err.to_string(),
-                Error::DbTypeSupport(err) => err.to_string(),
+                Error::DbTypeSupport(_) => "".to_string(),
                 Error::TokioRuntimeCreation(err) => err.to_string(),
                 Error::JsonSerialization(err) => err.to_string(),
                 Error::JsonDeserialization(err) => err.to_string(),
