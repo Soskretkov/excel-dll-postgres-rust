@@ -91,7 +91,12 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
         Type::BOOL => match row.try_get::<_, Option<bool>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::CHAR => match row.try_get::<_, Option<i8>>(column.name()) {
             Ok(Some(v)) => {
@@ -103,37 +108,72 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 json!(ch.to_string())
             }
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::INT2 => match row.try_get::<_, Option<i16>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::INT4 => match row.try_get::<_, Option<i32>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::OID => match row.try_get::<_, Option<u32>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::INT8 => match row.try_get::<_, Option<i64>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::FLOAT4 => match row.try_get::<_, Option<f32>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::FLOAT8 => match row.try_get::<_, Option<f64>>(column.name()) {
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::DATE => match row.try_get::<_, Option<NaiveDate>>(column.name()) {
             Ok(Some(v)) => {
@@ -143,7 +183,12 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 json!(v.format("%Y-%m-%d").to_string())
             }
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         Type::JSON | Type::JSONB => {
             match row.try_get::<_, Option<serde_json::Value>>(column.name()) {
@@ -155,7 +200,12 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                     json!(serialized_jsonb)
                 }
                 Ok(None) => Value::Null,
-                Err(err) => return Err(Error::DataRetrieval(err)),
+                Err(err) => {
+                    return Err(Error::DataRetrieval {
+                        err,
+                        column_type: column.type_().clone(),
+                    });
+                }
             }
         }
         Type::TEXT_ARRAY | Type::VARCHAR_ARRAY | Type::BPCHAR_ARRAY | Type::NAME_ARRAY => {
@@ -183,7 +233,12 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                     Value::String(formatted_array_str)
                 }
                 Ok(None) => Value::Null,
-                Err(err) => return Err(Error::DataRetrieval(err)),
+                Err(err) => {
+                    return Err(Error::DataRetrieval {
+                        err,
+                        column_type: column.type_().clone(),
+                    });
+                }
             }
         }
         Type::NUMERIC => match row.try_get::<_, Option<Decimal>>(column.name()) {
@@ -193,13 +248,23 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 json!(v)
             }
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
         _ => match row.try_get::<_, Option<String>>(column.name()) {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(Some(v)) => json!(v),
             Ok(None) => Value::Null,
-            Err(err) => return Err(Error::DataRetrieval(err)),
+            Err(err) => {
+                return Err(Error::DataRetrieval {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
         },
     })
 }

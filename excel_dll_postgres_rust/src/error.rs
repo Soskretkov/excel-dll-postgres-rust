@@ -9,7 +9,10 @@ pub enum Error {
     DBConnection(tokio_postgres::Error),
     SqlExecution(tokio_postgres::Error),
     TokioRuntimeCreation(std::io::Error),
-    DataRetrieval(tokio_postgres::Error),
+    DataRetrieval {
+        err: tokio_postgres::Error,
+        column_type: tokio_postgres::types::Type,
+    },
     JsonSerialization(serde_json::Error),
     JsonDeserialization(serde_json::Error),
     InternalLogic(String),
@@ -29,7 +32,7 @@ impl Error {
             Error::InvalidUtf16OnInput(_) => 2000,
             Error::DBConnection(_) => 3101,
             Error::SqlExecution(_) => 2202,
-            Error::DataRetrieval(_) => 1003,
+            Error::DataRetrieval { .. } => 1003,
             Error::TokioRuntimeCreation(_) => 1005,
             Error::JsonSerialization(_) => 1006,
             Error::JsonDeserialization(_) => 2007,
@@ -44,8 +47,12 @@ impl fmt::Display for Error {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
             Error::DBConnection(_) => write!(f, "Внешняя база данных недоступна"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
-            Error::DataRetrieval(_) => {
-                write!(f, "Не удалось конвертировать тип базы данных в rust-тип")
+            Error::DataRetrieval { column_type, .. } => {
+                write!(
+                    f,
+                    "Не удалось конвертировать тип базы данных '{}' в rust-тип",
+                    column_type.name()
+                )
             }
             Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
             Error::JsonSerialization(_) => {
@@ -76,7 +83,7 @@ impl Serialize for Error {
                 Error::InvalidUtf16OnInput(err) => err.to_string(),
                 Error::DBConnection(err) => err.to_string(),
                 Error::SqlExecution(err) => err.to_string(),
-                Error::DataRetrieval(err) => err.to_string(),
+                Error::DataRetrieval { err, .. } => err.to_string(),
                 Error::TokioRuntimeCreation(err) => err.to_string(),
                 Error::JsonSerialization(err) => err.to_string(),
                 Error::JsonDeserialization(err) => err.to_string(),
