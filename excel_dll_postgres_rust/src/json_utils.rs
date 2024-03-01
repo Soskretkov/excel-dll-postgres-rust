@@ -241,20 +241,20 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 }
             }
         }
-        // Type::NUMERIC => match row.try_get::<_, Option<Decimal>>(column.name()) {
-        //     Ok(Some(v)) => {
-        //         // Нельзя конвертировать в f64 а затем в JSON, есть опасность с потерей точности!
-        //         // В данном случае используется features "serde-float" пакета "rust_decimal"
-        //         json!(v)
-        //     }
-        //     Ok(None) => Value::Null,
-        //     Err(err) => {
-        //         return Err(Error::DbTypeConversion {
-        //             err,
-        //             column_type: column.type_().clone(),
-        //         });
-        //     }
-        // },
+        Type::NUMERIC => match row.try_get::<_, Option<Decimal>>(column.name()) {
+            Ok(Some(v)) => {
+                // Нельзя конвертировать в f64 а затем в JSON, есть опасность с потерей точности!
+                // В данном случае используется features "serde-float" пакета "rust_decimal"
+                json!(v)
+            }
+            Ok(None) => Value::Null,
+            Err(err) => {
+                return Err(Error::DbTypeConversion {
+                    err,
+                    column_type: column.type_().clone(),
+                });
+            }
+        },
         _ => match row.try_get::<_, Option<String>>(column.name()) {
             // VARCHAR, CHAR(n), TEXT, CITEXT, NAME
             Ok(Some(v)) => json!(v),
