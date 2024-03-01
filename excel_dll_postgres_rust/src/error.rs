@@ -20,25 +20,25 @@ pub enum Error {
 }
 
 impl Error {
-    // 1xxx - Внутренние ошибки: проблемы, слабо связанные с внешним миром.
-    // 2xxx - Внешние ошибки: ошибки, возникшие из-за некорректных данных на входе или действий пользователя.
-    // 3xxx - Ошибки при взаимодействии с базой данных.
-    // x0xx - Пользователя не нужно грузить деталями предоставив абстрактное описание.
-    // x1xx - Пользователю стоит показать общее описание.
-    // x2xx - Пользователю стоит показать общее описание и технические детали
-    // xxNN - Уникальный код ошибки.
+    // NNxx - Уникальный код ошибки.
+    // xx1x - Внутренние ошибки: проблемы, слабо связанные с внешним миром.
+    // xx2x - Внешние ошибки: ошибки, возникшие из-за некорректных данных на входе или действий пользователя.
+    // xx3x - Ошибки при взаимодействии с базой данных.
+    // xxx0 - Пользователя не нужно грузить деталями предоставив абстрактное описание.
+    // xxx1 - Пользователю стоит показать общее описание.
+    // xxx2 - Пользователю стоит показать общее описание и технические детали
 
     fn code(&self) -> u32 {
         match self {
-            Error::InvalidUtf16OnInput(_) => 2000,
-            Error::DBConnection(_) => 3101,
-            Error::SqlExecution(_) => 2202,
-            Error::DbTypeConversion { .. } => 1003,
-            Error::DbTypeSupport(_) => 3104,
-            Error::TokioRuntimeCreation(_) => 1005,
-            Error::JsonSerialization(_) => 1006,
-            Error::JsonDeserialization(_) => 2007,
-            Error::InternalLogic(_) => 1008,
+            Error::InvalidUtf16OnInput(_) => 0020,
+            Error::DBConnection(_) => 0131,
+            Error::SqlExecution(_) => 0222,
+            Error::DbTypeConversion { .. } => 0310,
+            Error::DbTypeSupport(_) => 0431,
+            Error::TokioRuntimeCreation(_) => 0510,
+            Error::JsonSerialization(_) => 0610,
+            Error::JsonDeserialization(_) => 0720,
+            Error::InternalLogic(_) => 0810,
         }
     }
 }
