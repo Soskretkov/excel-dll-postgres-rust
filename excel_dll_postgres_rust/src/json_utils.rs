@@ -188,14 +188,9 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
         }
         Type::NUMERIC => match row.try_get::<_, Option<Decimal>>(column.name()) {
             Ok(Some(v)) => {
-                // Можно конвертировать Decimal в f64 для JSON, но это не универсально и есь опасность с потерей точности!
-                // Если точность критична, лучше использовать строковое представление.
-                // Пример конвертации в f64:
-                // let float_val = v.to_f64().ok_or_else(|| Error::InternalLogic("Ошибка конвертации Decimal в f64".to_string()))?;
-                // json!(float_val)
-
-                // используем строковое представление для максимальной точности:
-                json!(v.to_string())
+                // Нельзя конвертировать в f64 а затем в JSON, есть опасность с потерей точности!
+                // В данном случае используется features "serde-float" пакета "rust_decimal"
+                json!(v)
             }
             Ok(None) => Value::Null,
             Err(err) => return Err(Error::DataRetrieval(err)),
