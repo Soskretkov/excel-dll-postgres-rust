@@ -82,22 +82,25 @@ impl Serialize for Error {
     where
         S: Serializer,
     {
+        let tech_descr = match self {
+            Error::InvalidUtf16OnInput(err) => Some(err.to_string()),
+            Error::DBConnection(err) => Some(err.to_string()),
+            Error::SqlExecution(err) => Some(err.to_string()),
+            Error::DbTypeConversion { err, .. } => Some(err.to_string()),
+            Error::DbTypeSupport(_) => None,
+            Error::TokioRuntimeCreation(err) => Some(err.to_string()),
+            Error::JsonSerialization(err) => Some(err.to_string()),
+            Error::JsonDeserialization(err) => Some(err.to_string()),
+            Error::InternalLogic(err) => Some(err.to_string()),
+        };
+
         let mut s = serializer.serialize_struct("ExportError", 3)?;
         s.serialize_field("code", &self.code())?;
         s.serialize_field("descr", &self.to_string())?;
-        s.serialize_field("tech_descr", {
-            &match self {
-                Error::InvalidUtf16OnInput(err) => err.to_string(),
-                Error::DBConnection(err) => err.to_string(),
-                Error::SqlExecution(err) => err.to_string(),
-                Error::DbTypeConversion { err, .. } => err.to_string(),
-                Error::DbTypeSupport(_) => "".to_string(),
-                Error::TokioRuntimeCreation(err) => err.to_string(),
-                Error::JsonSerialization(err) => err.to_string(),
-                Error::JsonDeserialization(err) => err.to_string(),
-                Error::InternalLogic(err) => err.to_string(),
-            }
-        })?;
+        match tech_descr {
+            Some(descr) => s.serialize_field("tech_descr", &Some(&descr as &str))?,
+            None => s.serialize_field("tech_descr", &None::<&str>)?,
+        }
 
         s.end()
     }
