@@ -8,14 +8,14 @@ pub enum Error {
     InvalidUtf16OnInput(FromUtf16Error),
     DBConnection(tokio_postgres::Error),
     SqlExecution(tokio_postgres::Error),
-    TokioRuntimeCreation(std::io::Error),
+    RuntimeCreation(std::io::Error),
     DbTypeConversion {
         err: tokio_postgres::Error,
         column_type: tokio_postgres::types::Type,
     },
     DbTypeSupport(tokio_postgres::types::Type),
-    JsonSerialization(serde_json::Error),
-    JsonDeserialization(serde_json::Error),
+    Serialization(serde_json::Error),
+    Deserialization(serde_json::Error),
     InternalLogic(String),
 }
 
@@ -35,9 +35,9 @@ impl Error {
             Error::SqlExecution(_) => "0222",
             Error::DbTypeConversion { .. } => "0310",
             Error::DbTypeSupport(_) => "0431",
-            Error::TokioRuntimeCreation(_) => "0510",
-            Error::JsonSerialization(_) => "0610",
-            Error::JsonDeserialization(_) => "0720",
+            Error::RuntimeCreation(_) => "0510",
+            Error::Serialization(_) => "0610",
+            Error::Deserialization(_) => "0720",
             Error::InternalLogic(_) => "0810",
         }
     }
@@ -61,11 +61,11 @@ impl fmt::Display for Error {
                 "Тип столбца базы данных '{}' не поддерживается",
                 column_type.name()
             ),
-            Error::TokioRuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
-            Error::JsonSerialization(_) => {
+            Error::RuntimeCreation(_) => write!(f, "Не удалось создать рантайм Tokio"),
+            Error::Serialization(_) => {
                 write!(f, "Не удалось сериализовать ответ БД в JSON-формат")
             }
-            Error::JsonDeserialization(_) => write!(f, "Не валидные аргументы переданы в dll"),
+            Error::Deserialization(_) => write!(f, "Не валидные аргументы переданы в dll"),
             Error::InternalLogic(_) => write!(f, "Логическая ошибка в dll"),
         }
     }
@@ -88,9 +88,9 @@ impl Serialize for Error {
             Error::SqlExecution(err) => Some(err.to_string()),
             Error::DbTypeConversion { err, .. } => Some(err.to_string()),
             Error::DbTypeSupport(_) => None,
-            Error::TokioRuntimeCreation(err) => Some(err.to_string()),
-            Error::JsonSerialization(err) => Some(err.to_string()),
-            Error::JsonDeserialization(err) => Some(err.to_string()),
+            Error::RuntimeCreation(err) => Some(err.to_string()),
+            Error::Serialization(err) => Some(err.to_string()),
+            Error::Deserialization(err) => Some(err.to_string()),
             Error::InternalLogic(err) => Some(err.to_string()),
         };
 

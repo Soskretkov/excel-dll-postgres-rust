@@ -195,7 +195,7 @@ pub fn convert_type(row: &Row, column: &Column) -> Result<Value, Error> {
                 Ok(Some(v)) => {
                     // Сериализуем значение JSON обратно в строку
                     let serialized_jsonb =
-                        serde_json::to_string(&v).map_err(|err| Error::JsonSerialization(err))?;
+                        serde_json::to_string(&v).map_err(|err| Error::Serialization(err))?;
                     // Упаковываем сериализованную строку обратно в Value как строку
                     json!(serialized_jsonb)
                 }

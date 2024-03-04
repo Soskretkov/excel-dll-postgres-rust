@@ -16,7 +16,7 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
                 vba_str_io::get_string_from_vba(ptr).map_err(Error::InvalidUtf16OnInput)?;
 
             let excel_requests: Vec<ApiRequest> =
-                serde_json::from_str(&string_from_vba).map_err(Error::JsonDeserialization)?;
+                serde_json::from_str(&string_from_vba).map_err(Error::Deserialization)?;
 
             let my_db_params = db::get_db_auth_data(); // параметры для подключения к БД
             let tokio_rows_vec = db::get_database_response(&excel_requests, my_db_params)?; // ответ БД
@@ -28,7 +28,7 @@ pub extern "stdcall" fn send_request(ptr: *const u16) -> *mut StringForVba {
 
     // сериализация и собственная ошибка на случай провала serde_json
     let sent_json_txt = serde_json::to_string(&wraped_responses_vec)
-        .map_err(Error::JsonSerialization)
+        .map_err(Error::Serialization)
         .unwrap_or_else(|err| {
             serde_json::json!(Err::<Vec<Result<SqlResponseTable, Error>>, Error>(err)).to_string()
         });

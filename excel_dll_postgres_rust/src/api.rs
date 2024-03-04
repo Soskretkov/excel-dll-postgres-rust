@@ -23,7 +23,7 @@ impl FromStr for ApiRequest {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_json::from_str(s).map_err(Error::JsonDeserialization)
+        serde_json::from_str(s).map_err(Error::Deserialization)
     }
 }
 

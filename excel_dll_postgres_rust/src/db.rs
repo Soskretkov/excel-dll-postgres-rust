@@ -29,7 +29,7 @@ pub fn get_database_response(
     );
 
     // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
-    let rt = runtime::Runtime::new().map_err(Error::TokioRuntimeCreation)?;
+    let rt = runtime::Runtime::new().map_err(Error::RuntimeCreation)?;
 
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
