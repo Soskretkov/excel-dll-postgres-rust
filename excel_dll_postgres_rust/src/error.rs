@@ -31,7 +31,7 @@ impl Error {
     fn code(&self) -> &'static str {
         match self {
             Error::InvalidUtf16OnInput(_) => "0020",
-            Error::DBConnection(_) => "0131",
+            Error::DBConnection(_) => "0132",
             Error::SqlExecution(_) => "0222",
             Error::DbTypeConversion { .. } => "0310",
             Error::DbTypeSupport(_) => "0431",

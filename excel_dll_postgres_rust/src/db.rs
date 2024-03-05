@@ -20,13 +20,16 @@ pub fn get_database_response(
     db_conect_params: Login,
 ) -> Result<Vec<Result<Vec<Row>, Error>>, Error> {
     // строка параметров для соединения с БД
-    let parameter_string = format!(
-        "host={} dbname={} user={} password={}",
+    let mut parameter_string = format!(
+        "host={} dbname={} user={}",
         db_conect_params.host,
         db_conect_params.db_name,
         db_conect_params.user,
-        db_conect_params.password
     );
+    
+    if !db_conect_params.password.is_empty() {
+        parameter_string = format!("{parameter_string} password={}", db_conect_params.password);
+    }
 
     // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
     let rt = runtime::Runtime::new().map_err(Error::RuntimeCreation)?;
@@ -55,7 +58,7 @@ pub fn get_database_response(
 }
 
 pub fn get_db_auth_data() -> Login {
-    let params_file_content = include_str!("../../unencrypted.txt");
+    let params_file_content = include_str!("../../unencrypted/unencrypted.txt");
     let params: Login = serde_json::from_str(params_file_content).unwrap();
 
     params
