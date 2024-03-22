@@ -2,7 +2,6 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::fmt;
 use std::string::FromUtf16Error;
-use tokio_postgres::error::SqlState;
 
 #[derive(Debug)]
 pub enum Error {

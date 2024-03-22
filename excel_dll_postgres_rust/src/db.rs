@@ -36,8 +36,9 @@ pub fn get_database_response(
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
         .map_err(|e| match e.as_db_error() {
-            Some(_) => Error::DbConnection(e),
             None => Error::ServerNotAvailable,
+            // рукав Some может не браться, если в файле postgresql.conf LC_MESSAGES не "English_United States.1252"
+            Some(_) => Error::DbConnection(e),
         })?;
 
     // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок
