@@ -4,6 +4,7 @@ resolver = "2"
 
 
 [profile.release]
-opt-level = 3
+opt-level = "z" # opt-level = "s" или "z" для максимального уменьшения размера
 lto = true
 debug = false
+panic = 'abort'

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::env;
 use std::fs;
 use tokio::runtime;
-use tokio_postgres::{NoTls, Row};
+use tokio_postgres::{error::SqlState, NoTls, Row};
 
 #[derive(Deserialize)]
 pub struct Login {
@@ -22,11 +22,9 @@ pub fn get_database_response(
     // строка параметров для соединения с БД
     let mut parameter_string = format!(
         "host={} dbname={} user={}",
-        db_conect_params.host,
-        db_conect_params.db_name,
-        db_conect_params.user,
+        db_conect_params.host, db_conect_params.db_name, db_conect_params.user,
     );
-    
+
     if !db_conect_params.password.is_empty() {
         parameter_string = format!("{parameter_string} password={}", db_conect_params.password);
     }
@@ -37,7 +35,10 @@ pub fn get_database_response(
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
-        .map_err(Error::DBConnection)?;
+        .map_err(|e| match e.code() {
+            Some(_) => Error::DbConnection(e),
+            None => Error::ServerNotAvailable,
+        })?;
 
     // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок
     rt.spawn(async move {

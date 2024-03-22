@@ -6,7 +6,8 @@ use std::string::FromUtf16Error;
 #[derive(Debug)]
 pub enum Error {
     InvalidUtf16OnInput(FromUtf16Error),
-    DBConnection(tokio_postgres::Error),
+    ServerNotAvailable,
+    DbConnection(tokio_postgres::Error),
     SqlExecution(tokio_postgres::Error),
     RuntimeCreation(std::io::Error),
     DbTypeConversion {
@@ -31,7 +32,8 @@ impl Error {
     fn code(&self) -> &'static str {
         match self {
             Error::InvalidUtf16OnInput(_) => "0020",
-            Error::DBConnection(_) => "0132",
+            Error::ServerNotAvailable => "0131",
+            Error::DbConnection(_) => "0132",
             Error::SqlExecution(_) => "0222",
             Error::DbTypeConversion { .. } => "0310",
             Error::DbTypeSupport(_) => "0431",
@@ -47,7 +49,8 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
-            Error::DBConnection(_) => write!(f, "Внешняя база данных недоступна"),
+            Error::ServerNotAvailable => write!(f, "Сервер недоступен"),
+            Error::DbConnection(_) => write!(f, "Внешняя база данных отверга попытку подключения"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
             Error::DbTypeConversion { column_type, .. } => {
                 write!(
@@ -84,7 +87,8 @@ impl Serialize for Error {
     {
         let tech_descr = match self {
             Error::InvalidUtf16OnInput(err) => Some(err.to_string()),
-            Error::DBConnection(err) => Some(err.to_string()),
+            Error::ServerNotAvailable => None,
+            Error::DbConnection(err) => Some(err.to_string()),
             Error::SqlExecution(err) => Some(err.to_string()),
             Error::DbTypeConversion { err, .. } => Some(err.to_string()),
             Error::DbTypeSupport(_) => None,
