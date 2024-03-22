@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::env;
 use std::fs;
 use tokio::runtime;
-use tokio_postgres::{error::SqlState, NoTls, Row};
+use tokio_postgres::{NoTls, Row};
 
 #[derive(Deserialize)]
 pub struct Login {
@@ -35,9 +35,12 @@ pub fn get_database_response(
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
-        .map_err(|e| match e.code() {
-            Some(_) => Error::DbConnection(e),
-            None => Error::ServerNotAvailable,
+        .map_err(|e| {
+            if e.to_string().contains("error connecting to server") {
+                Error::ServerNotAvailable
+            } else {
+                Error::DbConnection(e)
+            }
         })?;
 
     // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок

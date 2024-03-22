@@ -2,6 +2,7 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 use std::fmt;
 use std::string::FromUtf16Error;
+use tokio_postgres::error::SqlState;
 
 #[derive(Debug)]
 pub enum Error {
@@ -50,7 +51,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
             Error::ServerNotAvailable => write!(f, "Сервер недоступен"),
-            Error::DbConnection(_) => write!(f, "Внешняя база данных отверга попытку подключения"),
+            Error::DbConnection(_) => write!(f, "Внешняя база данных отвергает подключение"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
             Error::DbTypeConversion { column_type, .. } => {
                 write!(
