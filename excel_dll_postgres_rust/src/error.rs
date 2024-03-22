@@ -51,7 +51,7 @@ impl fmt::Display for Error {
         match self {
             Error::InvalidUtf16OnInput(_) => write!(f, "Не удалось конвертировать запрос в UTF-16"),
             Error::ServerNotAvailable => write!(f, "Сервер недоступен"),
-            Error::DbConnection(_) => write!(f, "Внешняя база данных отвергает подключение"),
+            Error::DbConnection(_) => write!(f, "База данных отвергла подключение"),
             Error::SqlExecution(_) => write!(f, "Не удалось выполнить SQL-запрос"),
             Error::DbTypeConversion { column_type, .. } => {
                 write!(

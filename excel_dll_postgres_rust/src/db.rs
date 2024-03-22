@@ -35,12 +35,9 @@ pub fn get_database_response(
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
-        .map_err(|e| {
-            if e.to_string().contains("error connecting to server") {
-                Error::ServerNotAvailable
-            } else {
-                Error::DbConnection(e)
-            }
+        .map_err(|e| match e.as_db_error() {
+            Some(_) => Error::DbConnection(e),
+            None => Error::ServerNotAvailable,
         })?;
 
     // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок
