@@ -60,6 +60,13 @@ pub fn get_database_response(
 }
 
 pub fn get_db_auth_data() -> Login {
+    // Загрузка параметров подключения к БД из файла во время компиляции. Содержимое файла, образец:
+    // {
+    //   "host": "localhost",
+    //   "dbName": "el_dabaa",
+    //   "user": "postgres",
+    //   "password": ""
+    // }
     let params_file_content = include_str!("../../unencrypted/unencrypted.txt");
     let params: Login = serde_json::from_str(params_file_content).unwrap();
 
@@ -67,7 +74,6 @@ pub fn get_db_auth_data() -> Login {
 }
 
 fn _get_encrypt_db_auth_data() -> Login {
-    // Загрузка содержимого файла во время выполнения (предполагается что файл размещен где .dll)
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let encrypted_file_path = current_dir.join("encrypted.txt");
     let _encrypted_file_content =
