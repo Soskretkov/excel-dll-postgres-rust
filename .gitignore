@@ -1,6 +1,7 @@
 /.vscode
 /target
 ~$test.xlsm
+type_oid.txt
 /encrypted.txt
 /encryption_key.txt
 /unencrypted

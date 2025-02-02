@@ -16,7 +16,7 @@ pub struct Login {
 }
 
 pub fn get_database_response(
-    excel_requests: &[ApiRequest],
+    requests: &[ApiRequest],
     db_conect_params: Login,
 ) -> Result<Vec<Result<Vec<Row>, Error>>, Error> {
     // строка параметров для соединения с БД
@@ -32,6 +32,7 @@ pub fn get_database_response(
     // Tokio автоматически создает рантайм для асинхронных операций, но ниже это делается вручную - код не в асинхронной среде
     let rt = runtime::Runtime::new().map_err(Error::RuntimeCreation)?;
 
+    // Подключаемся к БД
     // NoTls - не требуетя защищенного соединения, что приемлемо в защищенной среде
     let (client, connection) = rt
         .block_on(tokio_postgres::connect(&parameter_string, NoTls))
@@ -41,20 +42,16 @@ pub fn get_database_response(
             Some(_) => Error::DbConnection(e),
         })?;
 
-    // запускает асинхронную задачу, которая ожидает завершения соединения с БД. Если ошибка, она будет записана в стандартный поток ошибок
-    rt.spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
-
     let mut res: Vec<Result<Vec<Row>, Error>> = Vec::new();
-    for request in excel_requests {
+    for request in requests {
         res.push(
             rt.block_on(client.query(&request.sql_query, &[]))
                 .map_err(Error::SqlExecution),
         );
     }
+
+    // Явно ждём завершения соединения перед выходом из функции
+    rt.block_on(connection).map_err(Error::DbConnection)?;
 
     Ok(res)
 }
